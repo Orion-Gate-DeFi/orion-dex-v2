@@ -1,0 +1,283 @@
+<!-- Settings popover. role=dialog WITHOUT aria-modal: on desktop there's no
+     backdrop and the rest of the page stays interactive — claiming modality
+     would lie to screen readers. On phones (<720px) the component stylesheet
+     re-positions this same element as a centered modal with the backdrop
+     below — opened from the bottom trigger, the header-anchored popover
+     rendered off-view. -->
+<div class="orion-settings-pop-backdrop" aria-hidden="true" (click)="close.emit()"></div>
+<div
+  class="orion-settings-pop orion-modal orion-scale-in absolute top-12 right-0 w-[340px] max-w-[calc(100vw-24px)] max-h-[80vh] overflow-y-auto z-[var(--z-dropdown)]"
+  [class.has-confirm]="showConfirmModal()"
+  role="dialog"
+  aria-labelledby="settings-title"
+  orionFocusTrap
+>
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-5 py-4 border-b border-[var(--orion-border)]">
+    <h3 id="settings-title" class="text-[var(--orion-text)] font-semibold text-[15px]">Settings</h3>
+    <button
+      type="button"
+      class="orion-btn-icon"
+      aria-label="Close settings"
+      (click)="close.emit()"
+    >
+      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+    </button>
+  </header>
+
+  <div class="p-5 space-y-5">
+
+    <!-- Same-chain slippage -->
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[var(--orion-text)] text-[13px] font-medium">Same-chain slippage</span>
+          <span class="material-symbols-outlined text-[14px] text-[var(--orion-muted)]" title="Slippage for swaps on the same network" aria-hidden="true">info</span>
+        </div>
+        <button
+          type="button"
+          (click)="resetToAuto()"
+          class="orion-chip"
+          [class.orion-chip-selected]="isAutoSlippage()"
+        >
+          <span class="font-semibold">Auto</span>
+          <span class="orion-tabular">{{ settingsService.slippage() }}%</span>
+        </button>
+      </div>
+
+      <div class="flex gap-2">
+        <label class="orion-input flex-1">
+          <!-- type=text + orionNumericInput: a plain signal can't be the
+               target of [(ngModel)] (FormsModule writes via assignment, which
+               a signal ignores — the typed value never landed and Apply
+               stayed disabled). Bind one-way and push edits through .set(). -->
+          <input
+            type="text"
+            inputmode="decimal"
+            orionNumericInput
+            [ngModel]="slippageInput()"
+            (ngModelChange)="setSlippageInput($event)"
+            placeholder="Enter value %"
+            aria-label="Same-chain slippage percent"
+          />
+        </label>
+        <button
+          type="button"
+          class="orion-btn-primary"
+          style="padding: 8px 16px; font-size: 13px;"
+          (click)="requestSlippageChange()"
+          [disabled]="!hasSlippageChanged() || slippageError() !== null"
+        >
+          Apply
+        </button>
+      </div>
+
+      @if (slippageError(); as error) {
+        <p class="text-[11px] leading-snug" style="color: var(--orion-danger);" role="alert">
+          {{ error }}
+        </p>
+      }
+    </div>
+
+    <div class="orion-divider"></div>
+
+    <!-- Cross-chain slippage -->
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[13px] font-medium" style="color: var(--orion-warning);">Cross-chain slippage</span>
+          <span class="material-symbols-outlined text-[14px] text-[var(--orion-muted)]" title="Slippage for bridges" aria-hidden="true">info</span>
+        </div>
+        <button
+          type="button"
+          (click)="resetCrossChainToAuto()"
+          class="orion-chip"
+          [class.orion-chip-selected]="isAutoCrossChainSlippage()"
+        >
+          <span class="font-semibold">Auto</span>
+          <span class="orion-tabular">{{ settingsService.crossChainSlippage() }}%</span>
+        </button>
+      </div>
+
+      <div class="flex items-start gap-2 p-3 rounded-[12px]"
+           style="background: var(--orion-warning-tint); border: 1px solid transparent;">
+        <span class="material-symbols-outlined text-[14px] mt-0.5" style="color: var(--orion-warning);" aria-hidden="true">sync_alt</span>
+        <p class="text-[11px] leading-relaxed" style="color: var(--orion-warning);">
+          Cross-chain swaps have more price volatility. Recommended: 1-3%
+        </p>
+      </div>
+
+      <div class="flex gap-2">
+        <label class="orion-input flex-1">
+          <input
+            type="text"
+            inputmode="decimal"
+            orionNumericInput
+            [ngModel]="crossChainSlippageInput()"
+            (ngModelChange)="setCrossChainSlippageInput($event)"
+            placeholder="Enter value %"
+            aria-label="Cross-chain slippage percent"
+          />
+        </label>
+        <button
+          type="button"
+          class="orion-btn-primary"
+          style="padding: 8px 16px; font-size: 13px;"
+          (click)="requestCrossChainSlippageChange()"
+          [disabled]="!hasCrossChainSlippageChanged() || crossChainSlippageError() !== null"
+        >
+          Apply
+        </button>
+      </div>
+
+      @if (crossChainSlippageError(); as error) {
+        <p class="text-[11px] leading-snug" style="color: var(--orion-danger);" role="alert">
+          {{ error }}
+        </p>
+      }
+    </div>
+
+    <!-- Warning -->
+    <div class="flex items-start gap-2 p-3 rounded-[12px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)]">
+      <span class="material-symbols-outlined text-[14px] mt-0.5 text-[var(--orion-muted)]" aria-hidden="true">shield</span>
+      <p class="text-[11px] leading-relaxed text-[var(--orion-muted)]">
+        Only change slippage if you understand what it means. Too low = failed transactions. Too high = worse rates.
+      </p>
+    </div>
+
+    <!-- Aligned with getSlippageWarningLevel's 'dangerous' tier
+         (same-chain >3%, cross-chain >4% — the old >5 became unreachable
+         when the cap dropped to 5%). -->
+    @if (settingsService.slippage() > 3 || settingsService.crossChainSlippage() > 4) {
+      <div class="flex items-start gap-2 p-3 rounded-[12px]"
+           style="background: var(--orion-danger-tint);">
+        <span class="material-symbols-outlined text-[14px] mt-0.5" style="color: var(--orion-danger);" aria-hidden="true">warning</span>
+        <p class="text-[11px] leading-relaxed" style="color: var(--orion-danger);">
+          Very high slippage! Bots can exploit the gap and give you a worse price.
+        </p>
+      </div>
+    }
+
+  </div>
+</div>
+
+<!-- Slippage confirmation modal -->
+@if (showConfirmModal()) {
+  <div class="orion-backdrop" (click)="cancelSlippageChange()"></div>
+  <div class="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 pointer-events-none">
+    <!-- max-height + scroll: on landscape phones the modal is taller than the
+         viewport and the centered fixed container clipped Cancel/Confirm out
+         of reach. dvh tracks the VISIBLE viewport on mobile; the plain vh
+         redeclaration is the fallback for older browsers. -->
+    <div
+      class="orion-modal orion-scale-in w-full max-w-[420px] pointer-events-auto overflow-y-auto"
+      style="max-height: 85vh; max-height: 85dvh;"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="slippage-confirm-title"
+      orionFocusTrap
+    >
+
+      <!-- Header -->
+      <header class="flex items-center gap-3 px-5 py-4 border-b border-[var(--orion-border)]">
+        <span
+          class="material-symbols-outlined text-[20px]"
+          aria-hidden="true"
+          [style.color]="getSlippageWarningLevel() === 'dangerous' ? 'var(--orion-danger)' :
+                          getSlippageWarningLevel() === 'high' ? 'var(--orion-warning)' :
+                          'var(--orion-accent-text)'"
+        >
+          {{ getSlippageWarningLevel() === 'dangerous' || getSlippageWarningLevel() === 'high' ? 'warning' : 'info' }}
+        </span>
+        <h2 id="slippage-confirm-title" class="text-[15px] font-semibold flex-1"
+            [style.color]="getSlippageWarningLevel() === 'dangerous' ? 'var(--orion-danger)' :
+                            getSlippageWarningLevel() === 'high' ? 'var(--orion-warning)' :
+                            'var(--orion-text)'">
+          @if (getSlippageWarningLevel() === 'dangerous') {
+            Dangerous slippage
+          } @else if (getSlippageWarningLevel() === 'high') {
+            High slippage warning
+          } @else if (getSlippageWarningLevel() === 'low') {
+            Low slippage warning
+          } @else {
+            Confirm slippage change
+          }
+        </h2>
+      </header>
+
+      <div class="p-5 space-y-4">
+        <!-- Value display -->
+        <div class="rounded-[14px] p-4 text-center"
+             [style.background]="getSlippageWarningLevel() === 'dangerous' ? 'var(--orion-danger-tint)' :
+                                   getSlippageWarningLevel() === 'high' ? 'var(--orion-warning-tint)' :
+                                   'var(--orion-surface-2)'">
+          <p class="text-[12px] text-[var(--orion-muted)] mb-1">
+            Setting {{ confirmationType() === 'same-chain' ? 'same-chain' : 'cross-chain' }} slippage to
+          </p>
+          <span class="text-[32px] font-semibold orion-tabular"
+                [style.color]="getSlippageWarningLevel() === 'dangerous' ? 'var(--orion-danger)' :
+                                getSlippageWarningLevel() === 'high' ? 'var(--orion-warning)' :
+                                'var(--orion-accent-text)'">
+            {{ pendingSlippageValue() }}%
+          </span>
+        </div>
+
+        <!-- Explainer -->
+        @if (getSlippageWarningLevel() === 'dangerous') {
+          <p class="text-[12px] leading-relaxed" style="color: var(--orion-danger);">
+            <strong>Extreme risk!</strong> Bots can exploit the gap and take a large cut of your trade. Only proceed if you know what you're doing.
+          </p>
+        } @else if (getSlippageWarningLevel() === 'high') {
+          <p class="text-[12px] leading-relaxed" style="color: var(--orion-warning);">
+            <strong>High slippage</strong> increases the risk of receiving fewer tokens — bots can exploit the gap and give you a worse price.
+          </p>
+        } @else if (getSlippageWarningLevel() === 'low') {
+          <p class="text-[12px] text-[var(--orion-muted)] leading-relaxed">
+            <strong>Low slippage</strong> may cause your transactions to fail if the price moves. Consider using Auto.
+          </p>
+        } @else {
+          <p class="text-[12px] text-[var(--orion-muted)] leading-relaxed">
+            This is within the normal range, but differs from the recommended Auto setting.
+          </p>
+        }
+
+        <!-- Checkbox -->
+        <label class="flex items-center gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            [checked]="confirmationChecked()"
+            (change)="confirmationChecked.set(!confirmationChecked())"
+            class="shrink-0 w-4 h-4 rounded border-[var(--orion-border-strong)] bg-[var(--orion-surface-2)] cursor-pointer"
+          />
+          <span class="text-[12px] text-[var(--orion-muted)] group-hover:text-[var(--orion-text)] transition-colors leading-snug">
+            I understand the risks and want to change slippage settings
+          </span>
+        </label>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-1">
+          <button
+            type="button"
+            class="orion-btn-ghost flex-1"
+            (click)="cancelSlippageChange()"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="orion-btn-primary flex-1"
+            [disabled]="!confirmationChecked()"
+            [style.background]="!confirmationChecked() ? undefined :
+                                 getSlippageWarningLevel() === 'dangerous' ? 'var(--orion-danger)' :
+                                 getSlippageWarningLevel() === 'high' ? 'var(--orion-warning)' :
+                                 undefined"
+            (click)="confirmSlippageChange()"
+          >
+            Confirm change
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,101 @@
+# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+/bazel-out
+
+# Node
+/node_modules
+npm-debug.log
+yarn-error.log
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Miscellaneous
+/.angular/cache
+.sass-cache/
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment files with secrets (use environment.example.ts as template)
+# /src/environments/environment.ts
+# /src/environments/environment.prod.ts
+# Local-backend override for `npm run start:local` — must never reach CI,
+# it points apiUrl at a localhost dev server.
+/src/environments/environment.local.ts
+.env
+.env.local
+.env.*.local
+
+# Local development
+*.local
+.env
+.env.*
+
+# Logs
+logs
+*.log
+
+# Editor directories
+.cursor/
+*.swp
+*.swo
+
+# Build artifacts
+/build
+*.tgz
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Storybook
+storybook-static/
+
+# AI assistant prompt files & workspaces (personal, not shared)
+CLAUDE.md
+*.claude.md
+.claude/
+GEMINI.md
+*.gemini.md
+.agents/
+
+# Test coverage
+/coverage
+*.coverage
+
+# Lock files (optional - uncomment if you want to ignore them)
+# package-lock.json
+# yarn.lock
+
+# Playwright artifacts
+/test-results/
+/playwright-report/
+/e2e/screenshots/
+/e2e/.auth/

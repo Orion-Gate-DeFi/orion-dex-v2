@@ -1,0 +1,150 @@
+// =============================================================================
+// ORION ANIMATIONS
+// =============================================================================
+//
+// Motion primitives for the new horizontal swap UI. Keep durations short
+// (≤ 300ms) so the interface feels responsive, not cinematic.
+//
+// @author Orion DEX Team
+// @version 1.0.0
+
+// -----------------------------------------------------------------------------
+// Keyframes
+// -----------------------------------------------------------------------------
+@keyframes orion-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orion-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes orion-modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes orion-screen-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes orion-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes orion-pulse-ring {
+  0%   { transform: scale(0.95); opacity: 0.6; }
+  70%  { transform: scale(1.3);  opacity: 0;   }
+  100% { transform: scale(1.3);  opacity: 0;   }
+}
+
+// -----------------------------------------------------------------------------
+// Utility classes
+// -----------------------------------------------------------------------------
+// Continuous loading indicator — must loop (and linearly: an eased rotation
+// stutters at the loop seam). A one-shot eased spin is available separately
+// for tap feedback on the manual refresh button.
+.orion-spin          { animation: orion-spin 800ms linear infinite; }
+.orion-spin-once     { animation: orion-spin 600ms ease; }
+.orion-scale-in      { animation: orion-scale-in 180ms ease-out; }
+.orion-modal-in      { animation: orion-modal-in 200ms ease-out; }
+.orion-screen-enter  { animation: orion-screen-enter 220ms ease-out; }
+
+.orion-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--orion-surface-2) 0%,
+    var(--orion-surface-3) 50%,
+    var(--orion-surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: orion-shimmer 1.4s linear infinite;
+}
+
+.orion-pulse-dot {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: orion-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Agent edge-glow — the "assistant is thinking" sweep
+// -----------------------------------------------------------------------------
+// A rotating conic-gradient border (brand blue → ice → violet) that breathes
+// around the assistant input/panel while a turn is in flight. Ported from the
+// mobile Orbit DS "AgentEdgeGlow". @property makes the angle smoothly
+// animatable; the border-only look comes from the mask-composite punch-out.
+// Hidden (opacity 0) until `.is-thinking` is set. Under prefers-reduced-motion
+// the global block below freezes the rotation to a static multi-hue border.
+@property --orion-glow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes orion-glow-rotate {
+  to { --orion-glow-angle: 360deg; }
+}
+
+.orion-agent-glow {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -1.5px;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--orion-glow-angle),
+      var(--orion-accent),
+      var(--orion-glow-ice),
+      var(--orion-glow-violet),
+      var(--orion-accent)
+    );
+    // Border-only: paint the gradient on the padding box, then XOR-punch the
+    // interior so only the 1.5px frame remains.
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 220ms ease;
+    pointer-events: none;
+  }
+
+  &.is-thinking::before {
+    opacity: 1;
+    animation: orion-glow-rotate 1.2s linear infinite;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Reduced-motion fallback
+// -----------------------------------------------------------------------------
+// Vestibular-disorder users — and anyone who's enabled "Reduce motion" in
+// system settings — must not be subjected to spin/scale/shimmer animations.
+// We disable both keyframe animations and CSS transitions globally; the UI
+// still updates, just instantly.
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

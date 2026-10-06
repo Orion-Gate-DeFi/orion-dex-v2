@@ -1,0 +1,78 @@
+// Sass module loads — must come before any other rules in the file (Sass spec).
+// The partials emit CSS rules at module scope; nothing here references Sass
+// variables/mixins from them, so we don't need the `as *` namespace import.
+//
+// Web fonts moved to `index.html` as `<link rel="stylesheet">` — `@use` rules
+// must precede CSS `@import url()` directives, but the browser only honours
+// CSS @imports placed at the top of the resulting stylesheet. Loading via
+// `<link>` is also faster (parallel with HTML parsing) and avoids the
+// cascade conflict entirely.
+@use './styles/tokens';
+@use './styles/components';
+@use './styles/animations';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// Base styles
+html.dark {
+  color-scheme: dark;
+}
+
+// Flat orion background everywhere. The old radial blue+purple glow gradient
+// sat behind the new flat surfaces and painted a different black than the
+// header/footer (--orion-bg), leaving a visible seam on every page.
+body {
+  @apply text-white font-display min-h-screen overflow-x-hidden;
+  background: var(--orion-bg);
+}
+
+// Selection
+::selection {
+  background: var(--orion-selection);
+  color: var(--orion-text);
+}
+
+// Scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded;
+  
+  &:hover {
+    @apply bg-white/20;
+  }
+}
+
+// Legacy glass/glow component classes (glass-panel, glass-input, glass-button,
+// btn-primary, badge-*, pro-tip, health-bar, stepper, pulse-dot) deleted
+// 2026-06-12 — every screen migrated to the orion-* system in _components.scss
+// and nothing referenced them anymore (verified by grep over src/**/*.{html,ts}).
+
+// Material Icons
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+// Number input - remove arrows
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}

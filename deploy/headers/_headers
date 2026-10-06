@@ -1,0 +1,27 @@
+# Security headers for the Orion DEX static frontend — Netlify variant.
+#
+# Why this exists: index.html carries a <meta http-equiv> CSP, but browsers
+# IGNORE `frame-ancestors` (and X-Frame-Options) delivered via <meta> — the
+# app stays frameable (clickjacking) until these arrive as real HTTP headers
+# from the hosting layer (audit 2026-06-11).
+#
+# Usage: Netlify reads `_headers` from the PUBLISH directory, so copy this
+# file into the build artifact before deploying:
+#
+#   cp deploy/headers/_headers orion-app/dist/orion-app/browser/_headers
+#
+# (or add it to angular.json "assets" once hosting is settled).
+#
+# KEEP THE CSP IN SYNC with orion-app/src/index.html — when both a header
+# and a <meta> CSP are present, browsers enforce the intersection, so a
+# stale copy here silently breaks the app.
+#
+# Strict-Transport-Security: 1 year. Add `; preload` only after submitting
+# the domain to hstspreload.org — preload is effectively irreversible.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://auth.privy.io https://verify.walletconnect.com https://*.walletconnect.org https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.oriongate.services https://api.gopluslabs.io https://api.dexscreener.com https://auth.privy.io https://*.privy.io https://rpc.privy.systems https://*.rpc.privy.systems https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.eth.link https://mainnet.base.org https://*.drpc.org https://base.drpc.org https://rpc.ankr.com https://*.llamarpc.com https://eth.llamarpc.com https://base.llamarpc.com https://polygon.llamarpc.com https://arbitrum.llamarpc.com https://optimism.llamarpc.com https://arb1.arbitrum.io https://polygon-rpc.com https://mainnet.optimism.io https://cloudflare-eth.com https://*.publicnode.com https://gasstation.polygon.technology https://*.polygon.technology https://*.oriongate.services https://li.quest https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io; frame-src 'self' https://auth.privy.io https://verify.walletconnect.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

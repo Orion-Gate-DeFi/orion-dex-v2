@@ -1,0 +1,23 @@
+# Dependabot — weekly dependency PRs for orion-app and the CI workflows.
+# Added 2026-06-12 (public-test audit: supply chain).
+# Minor/patch bumps are grouped into one PR to keep the noise sane; majors
+# (Angular, ethers, Privy, LI.FI) still arrive as individual PRs because
+# they routinely need code changes.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /orion-app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

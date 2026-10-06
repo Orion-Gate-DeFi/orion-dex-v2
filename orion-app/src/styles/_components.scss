@@ -1,0 +1,843 @@
+// =============================================================================
+// ORION COMPONENTS
+// =============================================================================
+//
+// Base classes for the horizontal swap UI, namespaced with `orion-`.
+// The legacy `glass-*` / `btn-primary` classes they coexisted with during
+// the migration were deleted from styles.scss on 2026-06-12.
+//
+// @author Orion DEX Team
+// @version 1.0.0
+
+@layer components {
+  // ---------------------------------------------------------------------------
+  // Typography helpers
+  // ---------------------------------------------------------------------------
+  // Quiet sentence-case field label. Deliberately NOT uppercase+tracking:
+  // an uppercase micro-label above every value is the single most repeated
+  // generated-UI tell, and at 11px the tracking hurt readability anyway.
+  .orion-label {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--orion-muted);
+  }
+
+  .orion-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  // Addresses and tx hashes — mono so hex strings read in fixed columns and
+  // truncated forms (0x8a3f…d21c) stay visually comparable.
+  .orion-mono {
+    font-family: var(--orion-font-mono);
+    font-size: 0.92em;
+    letter-spacing: -0.01em;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cards & panels
+  // ---------------------------------------------------------------------------
+  .orion-card {
+    background: var(--orion-surface);
+    border: 1px solid var(--orion-border);
+    border-radius: var(--orion-radius-card);
+    overflow: hidden;
+  }
+
+  .orion-panel {
+    background: var(--orion-surface);
+    border: 1px solid var(--orion-border);
+    border-radius: var(--orion-radius-panel);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Buttons
+  // ---------------------------------------------------------------------------
+  .orion-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border-radius: var(--orion-radius-button);
+    background: var(--orion-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    transition: background 160ms ease, transform 160ms ease;
+
+    &:hover:not(:disabled) {
+      background: var(--orion-accent-hover);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    // Informational (error / insufficient-balance / risk-gate) states render
+    // inside a disabled CTA. Halving their opacity put the most critical
+    // text on the page at ~2.27:1 contrast — status states stay fully
+    // opaque; "this is not clickable" is conveyed by cursor + tint instead.
+    &.orion-btn-status:disabled {
+      opacity: 1;
+      cursor: default;
+    }
+  }
+
+  .orion-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: var(--orion-radius-button);
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    color: var(--orion-text);
+    transition: background 160ms ease, border-color 160ms ease;
+
+    &:hover:not(:disabled) {
+      background: var(--orion-surface-3);
+      border-color: var(--orion-border-strong);
+    }
+  }
+
+  .orion-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--orion-muted);
+    transition: background 160ms ease, color 160ms ease;
+
+    &:hover {
+      background: var(--orion-surface-3);
+      color: var(--orion-text);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Global focus-visible indicator
+  // ---------------------------------------------------------------------------
+  // Most of our buttons set `outline: none` for visual cleanliness; that
+  // makes the entire app unusable for keyboard-only users. Restore a
+  // visible focus ring scoped to keyboard-driven focus only — mouse clicks
+  // still get the clean look.
+  //
+  // No border-radius here: modern `outline` follows the element's own
+  // radius, and forcing 8px made round controls (chips, icon buttons,
+  // toggles) visibly jump to a rounded square on focus.
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--orion-accent);
+    outline-offset: 2px;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chips & pills
+  // ---------------------------------------------------------------------------
+  .orion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--orion-radius-chip);
+    background: var(--orion-surface-3);
+    border: 1px solid var(--orion-border);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--orion-text);
+  }
+
+  .orion-chip-success {
+    @extend .orion-chip;
+    background: var(--orion-success-tint);
+    border-color: transparent;
+    color: var(--orion-success);
+  }
+
+  .orion-chip-warning {
+    @extend .orion-chip;
+    background: var(--orion-warning-tint);
+    border-color: transparent;
+    color: var(--orion-warning);
+  }
+
+  .orion-chip-danger {
+    @extend .orion-chip;
+    background: var(--orion-danger-tint);
+    border-color: transparent;
+    color: var(--orion-danger);
+  }
+
+  .orion-chip-selected {
+    background: var(--orion-accent-tint) !important;
+    border-color: var(--orion-accent) !important;
+    color: var(--orion-text) !important;
+  }
+
+  button.orion-chip,
+  .orion-chip[role="button"] {
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+
+    &:hover {
+      border-color: var(--orion-border-strong);
+    }
+  }
+
+  // The header network/wallet chips are primary account controls on mobile;
+  // at 4px vertical padding they were ~26px-tall touch targets.
+  @media (pointer: coarse) {
+    button.orion-chip,
+    .orion-chip[role="button"] {
+      min-height: 40px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Segmented control (25 / 50 / MAX)
+  // ---------------------------------------------------------------------------
+  .orion-seg {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: var(--orion-radius-chip);
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    gap: 4px;
+
+    button {
+      // Touch-friendly target on mobile (≥40px tall = close to W3C 44pt
+      // recommendation when combined with the surrounding row padding).
+      // Desktop keeps the same comfort because the underline change at the
+      // top is visual feedback only, not a tap surface.
+      min-height: 40px;
+      padding: 8px 16px;
+      border-radius: var(--orion-radius-chip);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--orion-muted);
+      transition: background 120ms ease, color 120ms ease;
+
+      &:hover {
+        color: var(--orion-text);
+      }
+
+      &.active {
+        background: var(--orion-accent);
+        color: #fff;
+        // Underline complement so the active state isn't conveyed by colour
+        // alone — required for colour-blind users.
+        box-shadow: inset 0 -2px 0 0 rgba(255, 255, 255, 0.45);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Amount input (huge tabular numbers in the swap card)
+  // ---------------------------------------------------------------------------
+  .orion-amount-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: var(--orion-font-display);
+    font-variant-numeric: tabular-nums;
+    font-size: 40px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--orion-text);
+    padding: 0;
+
+    &::placeholder {
+      color: var(--orion-subtle);
+    }
+
+    // Visible focus indicator for keyboard users — the amount field is the
+    // most important interactive element on the swap card.
+    &:focus-visible {
+      outline: 2px solid var(--orion-accent);
+      outline-offset: 4px;
+      border-radius: 6px;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Swap flow layout grids (horizontal ≥1024px, stacked below)
+  // ---------------------------------------------------------------------------
+  // Product requirement: horizontal layout on desktop web, vertical stack on
+  // mobile. Every multi-column step layout lives here as a class — inline
+  // `style="grid-template-columns: …"` can never be collapsed by a media
+  // query, which is exactly how the review/status steps shipped broken on
+  // phones. The cut is Tailwind's lg (1024): at 721-1023px (iPad portrait
+  // included) the 3-column grid left each amount panel narrower than its own
+  // header row, so tablets stack too.
+
+  // Step 1: pay / centre controls / receive.
+  .orion-swap-card-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr 200px 1fr;
+  }
+
+  // Review: paying / arrow / receiving.
+  .orion-review-grid {
+    display: grid;
+    align-items: center;
+    gap: 20px;
+    grid-template-columns: 1fr 64px 1fr;
+  }
+
+  // Status (in flight): transaction summary card / timeline card.
+  .orion-status-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1.2fr 1fr;
+  }
+
+  // Status (done): success hero / receipt.
+  .orion-done-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr 1.2fr;
+  }
+
+  // Inline from → to summary inside the in-flight card.
+  .orion-tx-summary-grid {
+    display: grid;
+    align-items: center;
+    gap: 16px;
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  // Status / Elapsed / Transaction cells inside the in-flight card.
+  .orion-status-cells {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.3fr;
+  }
+
+  // Review details: 4-up on desktop, 2x2 on phones — auto-fit does both.
+  .orion-detail-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  // Beginner explainer columns.
+  .orion-explainer-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  // The flow arrow between panels — rotates to point down when stacked.
+  .orion-flow-arrow {
+    transition: transform 200ms ease;
+  }
+
+  // Phone-only seam flip button (classic vertical-DEX pattern): sits in the
+  // joint between the pay/get panels; the thick bg-coloured border carves
+  // the "cutout" ring. Hidden everywhere except the ≤719.98px layout below.
+  .orion-flip-seam {
+    display: none;
+  }
+
+  // Card padding presets (inline `style="padding: 36px 32px"` blocked the
+  // phone reduction below).
+  .orion-card-pad    { padding: 24px 28px; }
+  .orion-card-pad-lg { padding: 36px 32px; }
+
+  @media (max-width: 1023.98px) {
+    .orion-swap-card-grid,
+    .orion-review-grid,
+    .orion-status-grid,
+    .orion-done-grid {
+      grid-template-columns: 1fr;
+    }
+    .orion-flow-arrow { transform: rotate(90deg); }
+    // The centre card stops reserving column height in stacked mode; the
+    // component itself flattens into a horizontal bar (see orion-swap-center).
+    .orion-center-card { min-height: 0 !important; }
+  }
+
+  @media (max-width: 719.98px) {
+    // ── Vertical-DEX swap card (phones) ─────────────────────────────────
+    // One seamless stack: pay panel and get panel join with small inner
+    // radii; the centre column disappears and the seam button overlaps the
+    // joint. Tablets (720-1023px) keep the compact horizontal centre bar.
+    .orion-swap-card-grid {
+      gap: 4px;
+    }
+    .orion-swap-card-grid > .orion-card {
+      min-height: 0 !important;
+    }
+    .orion-swap-card-grid > .orion-card:first-child {
+      border-radius: var(--orion-radius-card) var(--orion-radius-card) 10px 10px;
+    }
+    .orion-swap-card-grid > .orion-card:last-child {
+      border-radius: 10px 10px var(--orion-radius-card) var(--orion-radius-card);
+    }
+    // !important: Tailwind utilities are emitted AFTER this partial (see
+    // styles.scss — @use components, then @tailwind utilities), so the
+    // `flex` utility on this same element (`orion-card orion-center-card …
+    // flex flex-col`) wins the equal-specificity tie and keeps the centre
+    // card visible. Without !important the flattened centre bar AND the
+    // phone seam button both render → two flip controls on mobile. (Same
+    // reason min-height above is forced.)
+    .orion-center-card {
+      display: none !important;
+    }
+    .orion-flip-seam {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: center;
+      width: 46px;
+      height: 46px;
+      margin: -25px 0;
+      z-index: 2;
+      border-radius: 14px;
+      background: var(--orion-surface-3);
+      border: 4px solid var(--orion-bg);
+      color: var(--orion-text);
+      transition: background 160ms ease;
+
+      .material-symbols-outlined { font-size: 20px; }
+
+      &:active:not(:disabled) { background: var(--orion-accent); }
+      &:disabled { opacity: 0.6; cursor: not-allowed; }
+    }
+
+    .orion-card-pad    { padding: 18px 16px; }
+    .orion-card-pad-lg { padding: 24px 18px; }
+    .orion-review-grid { gap: 12px; }
+    .orion-explainer-grid { grid-template-columns: 1fr; }
+    // Stack the from → to summary and wrap the status cells on phones.
+    .orion-tx-summary-grid { grid-template-columns: 1fr; }
+    .orion-tx-summary-grid .orion-flow-arrow { transform: rotate(90deg); }
+    .orion-status-cells { grid-template-columns: 1fr 1fr; }
+    .orion-status-cells > :last-child {
+      grid-column: 1 / -1;
+      border-left: none !important;
+      border-top: 1px solid var(--orion-border);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skip-to-main link (visible on focus only, hidden otherwise)
+  // ---------------------------------------------------------------------------
+  .orion-skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    padding: 10px 16px;
+    background: var(--orion-accent);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 0 0 12px 0;
+    z-index: 10000;
+
+    &:focus,
+    &:focus-visible {
+      left: 0;
+      outline: 2px solid #fff;
+      outline-offset: -4px;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Divider
+  // ---------------------------------------------------------------------------
+  .orion-divider {
+    height: 1px;
+    background: var(--orion-border);
+    border: none;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modal scaffolding
+  // ---------------------------------------------------------------------------
+  // No backdrop-filter: blur contradicted the flat no-blur direction of the
+  // system and forces an expensive full-screen repaint on mobile GPUs. The
+  // higher overlay opacity provides the same modal separation on its own.
+  .orion-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-modal-backdrop);
+  }
+
+  .orion-modal {
+    background: var(--orion-surface);
+    border: 1px solid var(--orion-border);
+    border-radius: var(--orion-radius-card);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text input (search / slippage)
+  // ---------------------------------------------------------------------------
+  .orion-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--orion-radius-button);
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    color: var(--orion-text);
+    transition: border-color 160ms ease;
+
+    &:hover,
+    &:focus-within {
+      border-color: var(--orion-border-strong);
+    }
+
+    input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--orion-text);
+      // 16px (not 14): iOS Safari force-zooms the page when a focused input is
+      // < 16px. This rule backs the token search, slippage and send/receive
+      // address fields, so 14px zoomed-and-panned on every mobile tap.
+      font-size: 16px;
+
+      &::placeholder {
+        color: var(--orion-subtle);
+      }
+    }
+
+    .material-symbols-outlined {
+      color: var(--orion-muted);
+      font-size: 18px !important;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Network tab (selector inside token modal)
+  // ---------------------------------------------------------------------------
+  .orion-net-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--orion-radius-chip);
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    color: var(--orion-muted);
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+
+    img {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+
+    &:hover {
+      color: var(--orion-text);
+      border-color: var(--orion-border-strong);
+    }
+
+    &.active {
+      background: var(--orion-accent-tint);
+      border-color: var(--orion-accent);
+      color: var(--orion-text);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Toggle switch (a <button role="switch"> — 44x24 for touch targets)
+  // ---------------------------------------------------------------------------
+  .orion-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    padding: 0;
+    appearance: none;
+    border-radius: 999px;
+    background: var(--orion-surface-3);
+    border: 1px solid var(--orion-border);
+    transition: background 160ms ease, border-color 160ms ease;
+    cursor: pointer;
+    flex: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: left 160ms ease;
+    }
+
+    &.on {
+      background: var(--orion-accent);
+      border-color: var(--orion-accent);
+
+      &::after {
+        left: 22px;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Top bar nav item
+  // ---------------------------------------------------------------------------
+  .orion-nav-item {
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--orion-muted);
+    background: transparent;
+    transition: background 120ms ease, color 120ms ease;
+
+    &:hover {
+      color: var(--orion-text);
+    }
+  }
+
+  .orion-nav-active {
+    color: var(--orion-text) !important;
+    background: var(--orion-surface-2);
+  }
+
+  // Mobile bottom nav item
+  .orion-mnav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    // >= 44px tap target (WCAG 2.5.5 / iOS HIG); the icon+label was ~38px.
+    min-height: 44px;
+    gap: 2px;
+    color: var(--orion-muted);
+    transition: color 120ms ease;
+  }
+
+  .orion-mnav-active {
+    // --orion-accent-text, not --orion-accent: 11px label needs 4.5:1 (WCAG AA)
+    color: var(--orion-accent-text) !important;
+  }
+
+  // Wallet gradient avatar
+  .orion-avatar {
+    background: conic-gradient(
+      from 220deg,
+      var(--orion-accent),
+      var(--orion-success),
+      var(--orion-warning),
+      var(--orion-accent)
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Network pill (token selector — bigger than nav-tab, with fee chip)
+  // ---------------------------------------------------------------------------
+  .orion-net-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    color: var(--orion-text);
+    font-size: 13px;
+    transition: background 160ms ease, border-color 160ms ease;
+    cursor: pointer;
+
+    img {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+    }
+
+    &:hover {
+      border-color: var(--orion-border-strong);
+    }
+
+    &.active {
+      background: var(--orion-accent-tint);
+      border-color: var(--orion-accent);
+      color: var(--orion-text);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token pill (favorites / popular row)
+  // ---------------------------------------------------------------------------
+  .orion-token-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px 7px 8px;
+    border-radius: 999px;
+    background: var(--orion-surface-2);
+    border: 1px solid var(--orion-border);
+    color: var(--orion-text);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 160ms ease, border-color 160ms ease;
+    cursor: pointer;
+
+    img {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--orion-surface-3);
+    }
+
+    &:hover {
+      border-color: var(--orion-border-strong);
+    }
+
+    &.active {
+      background: var(--orion-accent-tint);
+      border-color: var(--orion-accent);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token list row (bigger than orion-token-row, with selected state border)
+  // ---------------------------------------------------------------------------
+  .orion-token-list-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px 0 0;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    transition: background 160ms ease, border-color 160ms ease;
+
+    // The selectable area is a real <button> (keyboard access) while the
+    // favourite toggle stays a sibling — never nest interactive elements.
+    .row-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 6px 12px 14px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 14px;
+    }
+
+    img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--orion-surface-3);
+      flex: none;
+    }
+
+    &:hover {
+      background: var(--orion-surface-2);
+    }
+
+    &.selected {
+      background: var(--orion-accent-tint);
+      border-color: var(--orion-accent);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Favourite toggle visibility (token selector rows)
+  // ---------------------------------------------------------------------------
+  // Hidden-until-hover ONLY where hover physically exists. A hover rule that
+  // reveals content makes iOS Safari run its two-tap hover emulation on the
+  // whole row — the "single tap doesn't select a token on mobile" bug. On
+  // touch pointers the star is simply always visible (muted), so the first
+  // tap goes straight to the click.
+  .token-fav-reveal {
+    opacity: 0.55;
+
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  @media (hover: hover) {
+    .token-fav-reveal {
+      opacity: 0;
+    }
+
+    .group:hover .token-fav-reveal,
+    .token-fav-reveal:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token row (inside modal list)
+  // ---------------------------------------------------------------------------
+  .orion-token-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 160ms ease;
+
+    &:hover {
+      background: var(--orion-surface-2);
+    }
+
+    &.selected {
+      background: var(--orion-accent-tint);
+    }
+
+    img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--orion-surface-3);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Collapsible explainer (details/summary)
+  // ---------------------------------------------------------------------------
+  .orion-explainer {
+    summary {
+      list-style: none;
+      &::-webkit-details-marker { display: none; }
+    }
+    summary .chev {
+      transition: transform 180ms ease;
+    }
+    &[open] summary .chev {
+      transform: rotate(180deg);
+    }
+  }
+}

@@ -1,0 +1,160 @@
+# Frontend CI — type-check, build and unit-test orion-app.
+# Added 2026-06-11 (beta-fix pass, audit medium: "CI/CD absent").
+# Deploy stays manual for now.
+name: frontend-ci
+
+on:
+  push:
+    branches: [main, horizontal-design]
+    paths:
+      - 'orion-app/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main, horizontal-design]
+    paths:
+      - 'orion-app/**'
+      - '.github/workflows/ci.yml'
+
+# CI only reads the repo; no job needs write access to contents, PRs, etc.
+permissions:
+  contents: read
+
+# Cancel superseded runs of the same branch/PR — only the latest push matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: orion-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: orion-app/package-lock.json
+
+      # package-lock.json is generated with npm 11.6.2 locally. Both npm 10
+      # (bundled with Node 22) and newer npm 11 minors read that lock as
+      # out-of-sync (EUSAGE: missing transitive/optional entries — sync
+      # semantics shift between npm releases), so pin the EXACT generator
+      # version. If you regenerate the lock with a different npm, update
+      # this pin in the same commit.
+      - name: Align npm with the lockfile generator
+        run: npm install -g npm@11.6.2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        # Supply-chain gate (audit 2026-06-11). Level is `critical` for now
+        # because the @privy-io/@lifi dependency backlog still trips `high`;
+        # raise to --audit-level=high once those planned bumps land.
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        # `ng build` defaults to the production configuration, which swaps in
+        # environment.prod.ts via angular.json fileReplacements.
+        run: npm run build
+
+      - name: Unit tests (Karma, headless Chrome)
+        # ubuntu-latest ships Google Chrome; CHROME_BIN is set explicitly so
+        # the karma-chrome-launcher never has to guess the binary location.
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
+  # Privacy-contour e2e (added 2026-07-25, analytics/consent pass).
+  #
+  # Deliberately a SEPARATE job with no `needs:` — it duplicates install but
+  # runs in parallel with `frontend`, so the slowest signal in the workflow
+  # stays one job long instead of two.
+  #
+  # SCOPE: e2e/analytics-consent.spec.ts ONLY. The other suites are excluded
+  # because they cannot run unattended:
+  #   - authed.spec.ts  — needs a live Privy session saved by `npm run
+  #                       e2e:login` into e2e/.auth/profile (gitignored, and
+  #                       it holds real session tokens; there is no headless
+  #                       login path and putting wallet credentials in CI
+  #                       secrets would put a funded account in the runner);
+  #   - mobile.spec.ts  — only bound to the mobile-chrome/mobile-safari
+  #                       projects, out of scope for a chromium gate;
+  #   - smoke.spec.ts   — wallet-less and a fair future candidate, but it is a
+  #                       broad visual/layout suite; keeping this job narrow
+  #                       keeps it fast and its failures unambiguous.
+  # The consent suite needs no credentials at all: it stubs every
+  # googletagmanager.com request with an empty script, so it never touches the
+  # live GA4 property either.
+  e2e-consent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: orion-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: orion-app/package-lock.json
+
+      # Same lockfile-generator pin as the `frontend` job — see the rationale
+      # there. Both jobs run `npm ci` against the same lock, so they must use
+      # the same npm.
+      - name: Align npm with the lockfile generator
+        run: npm install -g npm@11.6.2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve the Playwright version
+        id: playwright
+        # Browser builds are pinned to the @playwright/test version, so the
+        # cache key must be too — a version bump has to miss the cache rather
+        # than run the new client against stale binaries.
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browser download
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium (browser + system deps)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium system deps (cache hit)
+        # Only the browser binary lives in the cache; the apt libraries it
+        # links against are not part of the runner image guarantee, so they
+        # still have to be installed on a cache hit.
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Privacy-contour e2e (Playwright, chromium)
+        # playwright.config.ts starts `ng serve --port 4300` itself (webServer)
+        # and waits up to 240s for the dev build — the slowest step here by
+        # far. The positional path narrows the run to the consent suite; the
+        # --project flag keeps it on the one browser.
+        run: npx playwright test e2e/analytics-consent.spec.ts --project=chromium
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-consent-traces
+          path: orion-app/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,0 +1,707 @@
+<div class="flex-1 flex items-start justify-center p-3 lg:p-4 relative min-h-0 orion-screen-enter">
+  <div class="w-full max-w-[700px] pt-6">
+    <div class="flex items-center gap-3 mb-6">
+      @if (currentStep() === 'form') {
+        <!-- tabindex="-1" #stepHeading: focus target on step change so
+             keyboard/SR users don't fall back to <body>. -->
+        <h1 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-[var(--orion-text)] tracking-[-0.01em] m-0 outline-none">Send</h1>
+      } @else if (currentStep() === 'review') {
+        <button
+          type="button"
+          class="orion-btn-icon"
+          aria-label="Back to send form"
+          (click)="backToForm()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </button>
+        <h1 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-[var(--orion-text)] tracking-[-0.01em] m-0 outline-none">Review your send</h1>
+      }
+    </div>
+
+    <div class="orion-card w-full">
+      <div class="p-4 sm:p-6 lg:p-8">
+        <!-- Step: Form -->
+        @if (currentStep() === 'form') {
+          <!-- Network Selector -->
+          <div class="mb-5">
+            <div class="flex justify-between items-center mb-2">
+              <span class="orion-label">Network</span>
+              @if (isPaymentLink()) {
+                <span class="text-xs flex items-center gap-1" style="color: var(--orion-accent-text);">
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">lock</span>
+                  Payment link
+                </span>
+              }
+            </div>
+            <div class="flex flex-wrap gap-2" [class.opacity-60]="isPaymentLink()">
+              @for (network of networks; track network.id) {
+                <button
+                  type="button"
+                  class="orion-net-pill"
+                  [class.active]="selectedNetwork()?.id === network.id"
+                  [class.cursor-not-allowed]="isPaymentLink()"
+                  [attr.aria-pressed]="selectedNetwork()?.id === network.id"
+                  [attr.aria-label]="'Select ' + network.name + ' network'"
+                  (click)="selectNetwork(network)"
+                >
+                  <img [src]="network.logoURI" [alt]="">
+                  <span class="font-semibold">{{ network.name }}</span>
+                  <!-- Non-colour active marker so the selected network isn't
+                       conveyed solely by the accent background. -->
+                  @if (selectedNetwork()?.id === network.id) {
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Token Selector -->
+          <div class="flex items-center justify-between mb-2">
+            <span class="orion-label">Token to send</span>
+            @if (selectedToken()) {
+              <div class="text-[12px] text-[var(--orion-muted)]">
+                Balance:
+                <span class="font-medium orion-tabular" style="color: var(--orion-accent-text);">{{ selectedToken()!.balance | number:'1.2-4' }} {{ selectedToken()!.symbol }}</span>
+              </div>
+            }
+          </div>
+          <div class="mb-4 relative">
+            @if (isLoadingTokens()) {
+              <div class="flex items-center justify-center py-4">
+                <span class="material-symbols-outlined orion-spin" style="color: var(--orion-accent-text);" aria-hidden="true">refresh</span>
+                <span class="text-[var(--orion-muted)] ml-2">Loading tokens…</span>
+              </div>
+            } @else if (loadTokensError()) {
+              <!-- Distinguish a load FAILURE from a genuinely empty wallet: the
+                   empty state below pushes the user to Receive, which is wrong
+                   advice when the balance API just failed. Offer a retry. -->
+              <div class="text-center py-4">
+                <span class="material-symbols-outlined text-[22px]" style="color: var(--orion-danger);" aria-hidden="true">error</span>
+                <span class="text-[var(--orion-muted)] block mt-1">Couldn't load your tokens</span>
+                <button
+                  type="button"
+                  (click)="loadTokensForNetwork({ force: true })"
+                  class="inline-flex items-center gap-1.5 mt-2 text-[13px] text-[var(--orion-accent-text)] hover:opacity-80 transition-opacity"
+                >
+                  Try again
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">refresh</span>
+                </button>
+              </div>
+            } @else if (availableTokens().length === 0) {
+              <!-- Not a dead end: a user with nothing to send needs a way to
+                   fund the wallet first. -->
+              <div class="text-center py-4">
+                <span class="text-[var(--orion-subtle)] block">No tokens on {{ selectedNetwork()?.name }}</span>
+                <a
+                  routerLink="/receive"
+                  class="inline-flex items-center gap-1.5 mt-2 text-[13px] text-[var(--orion-accent-text)] hover:opacity-80 transition-opacity"
+                >
+                  Receive tokens first
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+                </a>
+              </div>
+            } @else {
+              <button
+                type="button"
+                (click)="showTokenSelector.set(!showTokenSelector())"
+                [attr.aria-expanded]="showTokenSelector()"
+                class="w-full orion-panel p-4 flex items-center justify-between hover:border-[var(--orion-border-strong)] transition-colors"
+              >
+                @if (selectedToken(); as token) {
+                  <div class="flex items-center gap-3">
+                    <img [src]="token.logoURI" [alt]="token.symbol" class="w-9 h-9 rounded-full bg-[var(--orion-surface-3)]">
+                    <div class="text-left">
+                      <div class="text-[14px] font-semibold text-[var(--orion-text)]">{{ token.symbol }}</div>
+                      <div class="text-[11px] font-medium text-[var(--orion-muted)]">{{ token.name }}</div>
+                    </div>
+                  </div>
+                  @if (showTokenSelector()) {
+                    <span class="material-symbols-outlined text-[var(--orion-muted)] rotate-180" aria-hidden="true">expand_more</span>
+                  } @else {
+                    <span class="material-symbols-outlined text-[var(--orion-muted)]" aria-hidden="true">expand_more</span>
+                  }
+                } @else {
+                  <span class="text-[var(--orion-muted)]">Select token</span>
+                  @if (showTokenSelector()) {
+                    <span class="material-symbols-outlined text-[var(--orion-muted)] rotate-180" aria-hidden="true">expand_more</span>
+                  } @else {
+                    <span class="material-symbols-outlined text-[var(--orion-muted)]" aria-hidden="true">expand_more</span>
+                  }
+                }
+              </button>
+
+              <!-- Shared token selector in holdings mode: same dialog,
+                   search, keyboard access and letter-icons as the swap —
+                   scoped to tokens the user can actually send. -->
+              @if (showTokenSelector()) {
+                <app-token-selector
+                  mode="holdings"
+                  [lockNetwork]="true"
+                  [chainId]="selectedNetwork()?.id || 1"
+                  [selectedToken]="null"
+                  (tokenSelected)="onSelectorToken($event)"
+                  (close)="showTokenSelector.set(false)"
+                />
+              }
+            }
+          </div>
+
+          <!-- Payment link requested a token the opener doesn't hold: surface
+               it explicitly (the amount stays pre-filled) instead of silently
+               showing an empty / auto-selected token. Self-hides once a token
+               is selected (manually or resolved). -->
+          @if (linkTokenNotFound() && !selectedToken()) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">info</span>
+              <div>
+                <p class="font-semibold m-0">Requested token isn't in your wallet</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  This link requested a token you don't hold on {{ selectedNetwork()?.name }}.
+                  The amount is pre-filled — fund that token or pick one you hold.
+                </p>
+              </div>
+            </div>
+          }
+
+          <!-- Amount Input -->
+          <div class="flex items-center justify-between mb-2">
+            <span class="orion-label">Amount</span>
+
+            @if (selectedToken()) {
+              <button
+                type="button"
+                class="text-[12px] font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                style="color: var(--orion-accent-text);"
+                (click)="toggleInputMode()"
+              >
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">swap_vert</span>
+                {{ inputMode() === 'token' ? 'Enter in USD' : 'Enter in ' + selectedToken()!.symbol }}
+              </button>
+            }
+          </div>
+
+          <div class="orion-panel w-full px-5 py-4 mb-4 hover:border-[var(--orion-border-strong)] transition-colors">
+            <div class="flex items-baseline gap-2 mb-2 w-full">
+              @if (inputMode() === 'usd') {
+                <span class="text-3xl font-bold text-[var(--orion-muted)]">$</span>
+              }
+              <input
+                type="text"
+                inputmode="decimal"
+                orionNumericInput
+                pattern="[0-9]*\.?[0-9]*"
+                [(ngModel)]="amount"
+                (ngModelChange)="onAmountChange($event)"
+                [placeholder]="inputMode() === 'token' ? '0.0' : '0.00'"
+                aria-label="Amount to send"
+                class="orion-amount-input text-[length:clamp(32px,9vw,56px)] leading-none"
+              />
+            </div>
+            <div class="flex items-center justify-between">
+              <button
+                type="button"
+                class="text-[12px] text-[var(--orion-muted)] orion-tabular flex items-center gap-1 hover:text-[var(--orion-text)] transition-colors"
+                (click)="toggleInputMode()"
+              >
+                {{ displayValue() }}
+                <span class="material-symbols-outlined text-[12px]" aria-hidden="true">sync_alt</span>
+              </button>
+              <!-- Segmented percent control — mirrors the swap pay panel's
+                   .orion-seg (25 / 50 / MAX). No active-highlight: send tracks
+                   no activePercent, the amount is a free-typed field. -->
+              <div class="orion-seg">
+                <button type="button" (click)="setPercentage(25)">25%</button>
+                <button type="button" (click)="setPercentage(50)">50%</button>
+                <button type="button" (click)="setPercentage(100)">MAX</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manually typed full native balance: passes the balance check
+               but leaves nothing for gas, so it would die at signing. Same
+               reserve the MAX button holds back, surfaced with a one-tap fix. -->
+          @if (nativeGasWarning(); as gasWarning) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">local_gas_station</span>
+              <div class="flex-1">
+                <p class="font-semibold m-0">Leave ~{{ gasWarning.reserve }} {{ gasWarning.symbol }} for gas</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  This amount leaves nothing to pay the network fee, so the transaction would fail in your wallet.
+                </p>
+                <button
+                  type="button"
+                  class="orion-chip font-semibold mt-2"
+                  (click)="applySafeMax()"
+                >
+                  Use safe max
+                </button>
+              </div>
+            </div>
+          }
+
+          <!-- Recipient Address -->
+          <div class="flex items-center justify-between mb-2">
+            <span class="orion-label">Recipient address</span>
+
+            <!-- Persistent live container (role="status"): the verdict spans
+                 below mount/unmount, so the live region itself must stay in
+                 the DOM for screen readers to announce changes. Linked to the
+                 address input via aria-describedby. -->
+            <span id="recipient-status" role="status" aria-live="polite" class="flex items-center">
+            @if (recipientAddress && isValidAddress() && isBurnRecipient()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-danger);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">block</span>
+                Burn address
+              </span>
+            } @else if (isRecipientLocked()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-accent-text);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">lock</span>
+                Payment link
+              </span>
+            } @else if (recipientAddress && !isValidAddress()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-danger);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
+                Invalid address
+              </span>
+            } @else if (recipientAddress && isValidAddress() && isSelfRecipient()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-accent-text);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">person</span>
+                Your own address
+              </span>
+            } @else if (recipientAddress && isValidAddress() && isCheckingRecipient()) {
+              <span class="text-xs flex items-center gap-1 text-[var(--orion-muted)]">
+                <span class="material-symbols-outlined text-[14px] orion-spin" aria-hidden="true">refresh</span>
+                Checking…
+              </span>
+            } @else if (recipientAddress && isValidAddress() && recipientCheckFailed()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-warning);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">help</span>
+                Couldn't verify
+              </span>
+            } @else if (recipientAddress && isValidAddress() && isContractRecipient() === false) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-success);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check_circle</span>
+                Wallet address
+              </span>
+            } @else if (recipientAddress && isValidAddress() && isContractRecipient() === true) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-warning);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">warning</span>
+                Smart contract
+              </span>
+            } @else if (recipientAddress && isValidAddress()) {
+              <span class="text-xs flex items-center gap-1" style="color: var(--orion-success);">
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check_circle</span>
+                Valid address format
+              </span>
+            }
+            </span>
+          </div>
+
+          <div
+            class="orion-input w-full mb-2"
+            [ngClass]="isRecipientLocked() ? 'border-[var(--orion-accent)]' : ''"
+          >
+            @if (isRecipientLocked()) {
+              <p class="orion-mono text-sm break-all text-[var(--orion-text)] m-0">{{ recipientAddress }}</p>
+            } @else {
+              <input
+                type="text"
+                [ngModel]="recipientAddress"
+                (ngModelChange)="onRecipientAddressChange($event)"
+                placeholder="0x… wallet address"
+                aria-label="Recipient wallet address"
+                aria-describedby="recipient-status"
+                [attr.aria-invalid]="recipientAddress && (!isValidAddress() || isBurnRecipient()) ? true : null"
+                class="orion-mono"
+              >
+            }
+          </div>
+
+          <!-- Broken payment link: the `to` param was malformed or a burn
+               address, so the field was left editable instead of locking in
+               an unusable recipient. -->
+          @if (brokenPaymentLink()) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-danger-tint); color: var(--orion-danger);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">link_off</span>
+              <div>
+                <p class="font-semibold m-0">This payment link is broken</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  The recipient address in the link can't be used — enter the recipient address manually.
+                </p>
+              </div>
+            </div>
+          }
+
+          <!-- Burn-address recipient: hard block, no acknowledgment path. -->
+          @if (isValidAddress() && isBurnRecipient()) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-danger-tint); color: var(--orion-danger);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">block</span>
+              <div>
+                <p class="font-semibold m-0">This is a burn address — anything sent to it is lost forever</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  Nobody controls this address, so the transfer can never be recovered. Paste the recipient's real wallet address instead.
+                </p>
+              </div>
+            </div>
+          }
+
+          <!-- Smart-contract recipient: gates Review behind an explicit ack.
+               Soft framing: many such addresses are smart wallets (Safe,
+               account-abstraction wallets, MetaMask Smart Account) which
+               are perfectly fine to send to. The risk is the *unknown*
+               contract case, so we steer the user to verify on the explorer
+               before continuing. -->
+          @if (isValidAddress() && isContractRecipient() === true) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">info</span>
+              <div class="flex-1">
+                <p class="font-semibold m-0">
+                  This address has on-chain code, so it's a smart contract or smart wallet
+                </p>
+                <p class="text-[12px] mt-1.5 leading-relaxed opacity-90 m-0">
+                  That's normal for smart wallets like Safe, MetaMask Smart Account, or account-abstraction wallets; sending to those is fine. But it's also how token / DeFi contracts look, and sending tokens to one that doesn't accept them can lock your funds.
+                </p>
+                <p class="text-[12px] mt-1.5 leading-relaxed opacity-90 m-0">
+                  <strong class="font-semibold">What to do:</strong> open the address on the block explorer. If it's labelled as a known wallet (Safe, etc.) or shows recent regular activity, you're good. If it's a token / DeFi contract, double-check with the recipient before continuing.
+                </p>
+                <a
+                  [href]="getExplorerAddressUrl(selectedNetwork()!.id, recipientAddress)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 mt-2 text-[12px] underline underline-offset-2 hover:opacity-80 transition-opacity"
+                >
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">open_in_new</span>
+                  View on {{ selectedNetwork()!.explorerName || 'explorer' }}
+                </a>
+                <label class="flex items-center gap-2 mt-3 cursor-pointer text-[13px]">
+                  <input
+                    type="checkbox"
+                    [checked]="acknowledgedContract()"
+                    (change)="acknowledgedContract.set(!acknowledgedContract())"
+                    class="w-4 h-4"
+                  />
+                  <span class="font-medium">I checked the address and want to continue.</span>
+                </label>
+              </div>
+            </div>
+          }
+
+          <!-- Verification failed (all RPCs down): fail open, but with friction —
+               a visible warning plus an explicit acknowledgment. Never a silent
+               pass: the address may be a smart contract we couldn't detect. -->
+          @if (isValidAddress() && recipientCheckFailed() && !isBurnRecipient()) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">help</span>
+              <div class="flex-1">
+                <p class="font-semibold m-0">
+                  Couldn't verify this address (network issue) — it may be a smart contract
+                </p>
+                <p class="text-[12px] mt-1.5 leading-relaxed opacity-90 m-0">
+                  We couldn't reach the network to check whether this is a regular wallet or a smart contract. You can still continue, but double-check the address with the recipient first — tokens sent to the wrong contract can be locked forever.
+                </p>
+                <label class="flex items-center gap-2 mt-3 cursor-pointer text-[13px]">
+                  <input
+                    type="checkbox"
+                    [checked]="acknowledgedUnverified()"
+                    (change)="acknowledgedUnverified.set(!acknowledgedUnverified())"
+                    class="w-4 h-4"
+                  />
+                  <span class="font-medium">I double-checked the address and want to continue.</span>
+                </label>
+              </div>
+            </div>
+          }
+
+          <!-- Warning for valid EOA addresses (the standard "verify carefully"). -->
+          @if (recipientAddress && isValidAddress() && isContractRecipient() !== true && !isBurnRecipient() && !recipientCheckFailed()) {
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-6 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">warning</span>
+              <div>
+                <p class="font-semibold m-0">Double-check the address</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  Crypto transactions cannot be reversed. Make sure the recipient address is correct.
+                </p>
+              </div>
+            </div>
+          }
+
+          <!-- Send Button -->
+          <div>
+            @if (!walletService.isConnected()) {
+              <button type="button" class="orion-btn-primary w-full" (click)="walletService.connect()">
+                Connect wallet
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">account_balance_wallet</span>
+              </button>
+            } @else if (!selectedToken()) {
+              <button class="orion-btn-primary w-full" disabled>Select a token</button>
+            <!-- `!(+amount > 0)` (not `=== 0`): a bare '.' coerces to NaN,
+                 which `=== 0` lets through to review as 'NaN'. -->
+            } @else if (!(+amount > 0)) {
+              <button class="orion-btn-primary w-full" disabled>Enter an amount</button>
+            } @else if (!recipientAddress || !isValidAddress()) {
+              <button class="orion-btn-primary w-full" disabled>Enter a valid address</button>
+            } @else if (isBurnRecipient()) {
+              <button class="orion-btn-primary orion-btn-status w-full" disabled
+                      style="background: var(--orion-danger-tint); color: var(--orion-danger);">
+                <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                Burn address — sending blocked
+              </button>
+            } @else if (isInsufficientBalance()) {
+              <button class="orion-btn-primary orion-btn-status w-full" disabled
+                      style="background: var(--orion-danger-tint); color: var(--orion-danger);">
+                Not enough {{ selectedToken()!.symbol }}
+              </button>
+            } @else if (isCheckingRecipient()) {
+              <button class="orion-btn-primary orion-btn-status w-full" disabled
+                      style="background: var(--orion-surface-3); color: var(--orion-muted);">
+                <span class="material-symbols-outlined orion-spin" aria-hidden="true">refresh</span>
+                Checking address…
+              </button>
+            } @else if (isContractRecipient() === true && !acknowledgedContract()) {
+              <button class="orion-btn-primary orion-btn-status w-full" disabled
+                      style="background: var(--orion-warning-tint); color: var(--orion-warning);">
+                <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                Acknowledge the contract warning
+              </button>
+            } @else if (recipientCheckFailed() && !acknowledgedUnverified()) {
+              <button class="orion-btn-primary orion-btn-status w-full" disabled
+                      style="background: var(--orion-warning-tint); color: var(--orion-warning);">
+                <span class="material-symbols-outlined" aria-hidden="true">help</span>
+                Acknowledge the unverified-address warning
+              </button>
+            } @else if (!canProceedToReview()) {
+              <!-- Fail-closed catch-all: canProceedToReview() is the single
+                   source of truth — any recipient state the labelled branches
+                   above don't cover (e.g. check never ran) lands here instead
+                   of on an active Review button. -->
+              <button class="orion-btn-primary w-full" disabled>Verify the recipient address</button>
+            } @else {
+              <button type="button" class="orion-btn-primary w-full" (click)="goToReview()">
+                Review send
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+              </button>
+            }
+          </div>
+        }
+
+        <!-- Step: Review -->
+        @if (currentStep() === 'review') {
+          <!-- Summary -->
+          <div class="text-center py-6">
+            <div class="orion-label mb-3">You're sending</div>
+            <div class="flex items-center justify-center gap-3 mb-2">
+              <img [src]="selectedToken()!.logoURI" [alt]="selectedToken()!.symbol" class="w-10 h-10 rounded-full bg-[var(--orion-surface-3)]">
+            </div>
+            <!-- clamp(): toFixed(6) is 8+ chars; a fixed 56px overflows a
+                 360px card. Wrap keeps the symbol on its own line if needed. -->
+            <div class="flex flex-wrap items-baseline justify-center gap-3 mb-2">
+              <span class="text-[length:clamp(32px,9vw,56px)] font-bold text-[var(--orion-text)] leading-none orion-tabular">{{ tokenAmount().toFixed(6) }}</span>
+              <span class="text-[24px] font-semibold leading-none" style="color: var(--orion-accent-text);">
+                {{ selectedToken()!.symbol }}
+              </span>
+            </div>
+            <div class="text-[14px] text-[var(--orion-muted)] orion-tabular">
+              {{ inputMode() === 'usd' ? '$' + amount : displayValue() }}
+            </div>
+          </div>
+
+          <div class="flex justify-center mb-4">
+            <div class="w-11 h-11 rounded-full bg-[var(--orion-surface-2)] border border-[var(--orion-border)] flex items-center justify-center text-[var(--orion-muted)]">
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_downward</span>
+            </div>
+          </div>
+
+          <div class="space-y-3 mb-4">
+            <span class="orion-label block">Transaction details</span>
+            <div class="orion-panel p-4 space-y-3">
+              <!-- Recipient surfaced on review so the user can verify the
+                   address before signing (the wallet popup shows it too, but
+                   buried in raw tx details). -->
+              <div class="flex items-start justify-between gap-3">
+                <span class="text-[13px] text-[var(--orion-muted)] flex-shrink-0 mt-0.5">Recipient</span>
+                <span class="text-[12px] orion-mono break-all text-right text-[var(--orion-text)]">{{ recipientAddress }}</span>
+              </div>
+
+              <div class="orion-divider"></div>
+
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] text-[var(--orion-muted)]">Network</span>
+                <div class="flex items-center gap-2">
+                  <img [src]="selectedNetwork()!.logoURI" [alt]="selectedNetwork()!.name" class="w-5 h-5 rounded-full">
+                  <span class="text-[13px] font-medium text-[var(--orion-text)]">{{ selectedNetwork()!.name }}</span>
+                </div>
+              </div>
+
+              <div class="orion-divider"></div>
+
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] text-[var(--orion-muted)]">Estimated fee</span>
+                <div class="text-right">
+                  @if (isEstimatingGas()) {
+                    <div class="flex items-center gap-1.5 text-[13px] text-[var(--orion-muted)]">
+                      <span class="material-symbols-outlined text-[14px] orion-spin" aria-hidden="true">refresh</span>
+                      <span>Estimating…</span>
+                    </div>
+                  } @else if (gasEstimateUSD()) {
+                    <div class="text-[13px] font-medium text-[var(--orion-text)] orion-tabular">{{ formatFeeUsd(gasEstimateUSD()!) }}</div>
+                  } @else {
+                    <div class="text-[13px] text-[var(--orion-muted)]">Could not estimate</div>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="flex items-start gap-3 px-4 py-3 rounded-[14px] mb-4"
+            style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+          >
+            <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">warning</span>
+            <div>
+              <h4 class="text-[13px] font-semibold mb-1 m-0">Verify all details</h4>
+              <p class="text-[12px] leading-relaxed opacity-90 m-0">
+                Once confirmed, this transaction cannot be reversed. Double-check the recipient address and amount.
+              </p>
+            </div>
+          </div>
+
+          <!-- Confirm Button -->
+          <div class="flex gap-3">
+            <button
+              type="button"
+              (click)="backToForm()"
+              class="orion-btn-ghost flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              (click)="executeSend()"
+              class="orion-btn-primary flex-1"
+            >
+              Confirm and send
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+            </button>
+          </div>
+        }
+
+        <!-- Step: Status -->
+        @if (currentStep() === 'status') {
+          <div class="text-center p-4">
+            <!-- Persistent live region: the visible per-status headings are
+                 destroyed and recreated on each transition, which screen
+                 readers don't announce. Step entry ('signing') is announced
+                 by the heading focus below; this covers switching → signing
+                 → pending → completed/failed. -->
+            <p class="sr-only" aria-live="polite">
+              @switch (txStatus()) {
+                @case ('switching') { Switching network — approve the network change in your wallet }
+                @case ('signing') { Sign the transaction in your wallet }
+                @case ('pending') { Sending — your transaction is being confirmed }
+                @case ('completed') { Sent successfully }
+                @case ('failed') { Send failed }
+              }
+            </p>
+
+            <!-- Status Icon -->
+            @if (txStatus() === 'switching') {
+              <!-- SendService switches the wallet's network before asking for
+                   a signature — without this branch the screen says "Sign the
+                   transaction" while the wallet shows a network-change prompt. -->
+              <app-status-icon class="mx-auto mb-6" icon="sync_alt" tint="warning" animate="pulse"></app-status-icon>
+              <h2 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-[var(--orion-text)] mb-2 outline-none">Switching network…</h2>
+              <p class="text-[14px] text-[var(--orion-muted)]">Approve the network change in your wallet.</p>
+            } @else if (txStatus() === 'signing') {
+              <app-status-icon class="mx-auto mb-6" icon="draw" tint="warning" animate="pulse"></app-status-icon>
+              <h2 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-[var(--orion-text)] mb-2 outline-none">Sign the transaction</h2>
+              <p class="text-[14px] text-[var(--orion-muted)]">Confirm the transaction in your wallet.</p>
+            } @else if (txStatus() === 'pending') {
+              <app-status-icon class="mx-auto mb-6" icon="refresh" tint="accent" animate="spin"></app-status-icon>
+              <h2 class="text-[22px] font-semibold text-[var(--orion-text)] mb-2">Sending…</h2>
+              <p class="text-[14px] text-[var(--orion-muted)]">Your transaction is being confirmed.</p>
+              @if (txHash()) {
+                <a
+                  [href]="explorerUrl()"
+                  target="_blank"
+                  rel="noopener"
+                  class="mt-4 inline-flex items-center gap-2 text-[var(--orion-accent-text)] hover:opacity-80 transition-opacity"
+                >
+                  View on explorer
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span>
+                </a>
+              }
+            } @else if (txStatus() === 'completed') {
+              <app-status-icon class="mx-auto mb-6" icon="check_circle" tint="success"></app-status-icon>
+              <h2 class="text-[22px] font-semibold text-[var(--orion-text)] mb-2">Sent!</h2>
+              <p class="text-[14px] text-[var(--orion-muted)] mb-4">Your {{ selectedToken()!.symbol }} has been sent successfully.</p>
+
+              @if (txHash()) {
+                <a
+                  [href]="explorerUrl()"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-2 text-[var(--orion-accent-text)] hover:opacity-80 transition-opacity"
+                >
+                  View on explorer
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span>
+                </a>
+              }
+            } @else if (txStatus() === 'failed') {
+              <app-status-icon class="mx-auto mb-6" icon="error" tint="danger"></app-status-icon>
+              <h2 class="text-[22px] font-semibold text-[var(--orion-text)] mb-2">Failed</h2>
+              <p class="text-[14px] mb-4" style="color: var(--orion-danger);">{{ txError() }}</p>
+            }
+
+            <!-- Action Buttons -->
+            <div class="mt-8 space-y-3">
+              @if (txStatus() === 'completed' || txStatus() === 'failed') {
+                <button
+                  type="button"
+                  class="orion-btn-primary w-full"
+                  (click)="reset()"
+                >
+                  Send another
+                </button>
+                <a
+                  routerLink="/"
+                  class="orion-btn-ghost w-full"
+                  style="text-decoration: none;"
+                >
+                  Back to dashboard
+                </a>
+              }
+            </div>
+          </div>
+        }
+
+      </div>
+    </div>
+  </div>
+</div>
