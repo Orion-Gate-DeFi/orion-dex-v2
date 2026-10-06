@@ -1,0 +1,372 @@
+<!-- Backdrop -->
+<div class="orion-backdrop" (click)="close.emit()"></div>
+
+<!-- Modal -->
+<div class="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 pointer-events-none">
+  <!-- selector-shell carries the max-height (88dvh with vh fallback);
+       every non-list section below is shrink-0 so on short viewports only
+       the token LIST gives up height — header/search/tabs/footer used to
+       shrink below their content and clip. -->
+  <div
+    class="orion-modal orion-scale-in selector-shell w-full max-w-[600px] flex flex-col pointer-events-auto"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="token-selector-title"
+    orionFocusTrap
+  >
+
+    <!-- Header -->
+    <header class="flex items-start justify-between px-6 pt-5 pb-4 shrink-0">
+      <div>
+        <h2 id="token-selector-title" class="text-[var(--orion-text)] text-[18px] font-semibold leading-[24px]">
+          Select token to {{ mode === 'holdings' ? 'send' : (selectingFor === 'from' ? 'pay' : 'receive') }}
+        </h2>
+        <p class="text-[12px] text-[var(--orion-muted)] mt-0.5">
+          {{ mode === 'holdings' ? 'Tokens with a balance in your wallet' : 'Pick a network, then choose a token' }}
+        </p>
+      </div>
+      <button class="orion-btn-icon" aria-label="Close token selector" (click)="close.emit()">
+        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+      </button>
+    </header>
+
+    <!-- Cross-chain toggle (only for 'to' token) -->
+    @if (selectingFor === 'to') {
+      <!-- A real switch button: the old <span (click)> was unreachable by
+           keyboard and invisible to screen readers — and this setting changes
+           routing behaviour and fees. -->
+      <div class="flex items-center justify-between gap-4 mx-6 mb-4 px-3 py-2.5 rounded-[12px] border shrink-0"
+           style="background: var(--orion-surface-2); border-color: var(--orion-border);">
+        <div class="flex flex-col gap-0.5" id="cross-chain-label">
+          <span class="text-[13px] font-medium text-[var(--orion-text)]">Cross-chain mode</span>
+          <span class="text-[11px] text-[var(--orion-muted)]">Swap across different networks</span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          class="orion-toggle"
+          [class.on]="settingsService.crossChainMode()"
+          [attr.aria-checked]="settingsService.crossChainMode()"
+          aria-labelledby="cross-chain-label"
+          (click)="settingsService.toggleCrossChainMode()"
+        ></button>
+      </div>
+    }
+
+    <!-- Network section. No per-network fee badges or "Fees on X" read-out:
+         that decoration repeated colour-coded noise on every pill while the
+         actual cost the user pays is already quoted precisely in the info
+         strip once a pair is picked. -->
+    <div class="px-6 pb-4 shrink-0">
+      <div class="mb-2.5">
+        <span class="orion-label">Network</span>
+      </div>
+
+      @if (isNetworkLocked()) {
+        <div class="flex items-center gap-2 px-3 py-2.5 rounded-[12px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)]">
+          <img [src]="selectedNetwork()?.logoURI" [alt]="selectedNetwork()?.name" class="w-5 h-5 rounded-full">
+          <span class="text-[13px] font-medium text-[var(--orion-text)]">{{ selectedNetwork()?.name }}</span>
+          <span class="material-symbols-outlined text-[var(--orion-subtle)] text-[14px]" aria-hidden="true">lock</span>
+          <span class="text-[11px] text-[var(--orion-subtle)] ml-auto">{{ mode === 'holdings' ? 'Chosen above' : 'Same as source' }}</span>
+        </div>
+      } @else {
+        <div class="flex flex-wrap gap-2">
+          @for (network of networks(); track network.id) {
+            <button
+              type="button"
+              class="orion-net-pill"
+              [class.active]="selectedNetwork()?.id === network.id"
+              [attr.aria-pressed]="selectedNetwork()?.id === network.id"
+              [attr.aria-label]="'Select ' + network.name + ' network'"
+              (click)="selectNetwork(network)"
+            >
+              <img [src]="network.logoURI" [alt]="">
+              <span class="font-semibold">{{ network.shortName }}</span>
+              @if (selectedNetwork()?.id === network.id) {
+                <!-- Non-colour active indicator: an explicit checkmark glyph
+                     so colour-blind users (and anyone in a high-contrast
+                     mode that strips backgrounds) still see which network
+                     is selected. -->
+                <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>
+              }
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Search -->
+    <div class="px-6 pb-4 shrink-0">
+      <label class="orion-input">
+        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+        <input
+          type="text"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="filterTokens($event)"
+          (keydown.arrowdown)="focusFirstRow($event)"
+          placeholder="Search by name or paste address"
+          aria-label="Search tokens by name, symbol, or contract address"
+        />
+        @if (searchQuery) {
+          <button
+            type="button"
+            class="orion-btn-icon"
+            style="width: 24px; height: 24px;"
+            aria-label="Clear search"
+            (click)="searchQuery = ''; filterTokens('')"
+          >
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+          </button>
+        }
+      </label>
+    </div>
+
+    <!-- Favorites (market mode only — holdings has no curation layer) -->
+    @if (mode === 'market' && !searchQuery && favoriteTokensForNetwork().length > 0) {
+      <div class="px-6 pb-4 shrink-0">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="material-symbols-outlined text-[var(--orion-danger)] text-[14px]" aria-hidden="true">favorite</span>
+          <span class="orion-label">Favorites</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          @for (token of favoriteTokensForNetwork(); track token.address) {
+            <!-- Select + remove are SIBLING buttons (main-list idiom): the
+                 old nested clickable span inside the pill button had no
+                 keyboard access and no accessible name. The remove button is
+                 hover-revealed but stays in the tab order — focus-visible
+                 makes it appear for keyboard users. -->
+            <div class="group flex items-center">
+              <button
+                type="button"
+                class="orion-token-pill"
+                [class.active]="selectedToken?.address === token.address && selectedToken?.chainId === token.chainId"
+                (click)="selectToken(token)"
+              >
+                <img
+                  [src]="tokenIcon(token)"
+                  [alt]="token.symbol"
+                  (error)="onImageError($event)"
+                />
+                <span>{{ token.symbol }}</span>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded-lg transition-all shrink-0 token-fav-reveal"
+                style="color: var(--orion-danger);"
+                [attr.aria-label]="'Remove ' + token.symbol + ' from favorites'"
+                title="Remove from favorites"
+                (click)="toggleFavorite($event, token)"
+              >
+                <span
+                  class="material-symbols-outlined text-[14px]"
+                  aria-hidden="true"
+                  style="font-variation-settings: 'FILL' 1;"
+                >favorite</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- (No separate "Popular on X" pill row: the Popular tab below shows
+         the same curated set — duplicating it above the list ate ~80px of
+         the modal and made the top half read as clutter.) -->
+
+    <!-- List filters: curated views. Visible during search too — the active
+         filter scopes the query (searching on RWA must not surface the whole
+         market). Plain toggle buttons, NOT role=tab: a real tablist promises
+         arrow-key navigation + tabpanel wiring we don't implement, and two
+         buttons don't need composite-widget semantics. -->
+    @if (mode === 'market') {
+    <div class="flex items-center gap-2 px-6 pb-3 shrink-0" role="group" aria-label="Token list category">
+        <button
+          type="button"
+          class="orion-net-tab"
+          [class.active]="listTab() === 'popular'"
+          [attr.aria-pressed]="listTab() === 'popular'"
+          (click)="setListTab('popular')"
+        >
+          <span class="material-symbols-outlined text-[14px]" aria-hidden="true">star</span>
+          Popular
+        </button>
+        <button
+          type="button"
+          class="orion-net-tab"
+          [class.active]="listTab() === 'rwa'"
+          [attr.aria-pressed]="listTab() === 'rwa'"
+          (click)="setListTab('rwa')"
+        >
+          <span class="material-symbols-outlined text-[14px]" aria-hidden="true">account_balance</span>
+          RWA
+        </button>
+        <!-- Dust toggle replaces the descriptive label on the Popular tab (it
+             only affects the default holdings list, so it's hidden during
+             search and on the RWA tab). aria-pressed conveys the on/off
+             state; the label stays constant. -->
+        @if (listTab() === 'popular' && !searchQuery) {
+          <button
+            type="button"
+            class="orion-net-tab ml-auto"
+            style="padding: 4px 10px; font-size: 11px;"
+            [class.active]="hideDustBalances()"
+            [attr.aria-pressed]="hideDustBalances()"
+            aria-label="Hide balances under $1"
+            (click)="toggleHideDust()"
+          >
+            <span class="material-symbols-outlined text-[14px]" aria-hidden="true">filter_alt</span>
+            Hide dust
+          </button>
+        } @else {
+          <span class="ml-auto text-[10.5px] text-[var(--orion-subtle)]">
+            {{ listTab() === 'rwa' ? 'Stocks, treasuries & gold' : 'Curated tokens + your holdings' }}
+          </span>
+        }
+      </div>
+    }
+
+    <!-- Token list -->
+    <div class="token-list flex-1 overflow-y-auto px-3 pb-2 min-h-0 border-t" style="border-color: var(--orion-border);">
+      @if (isLoading() || isSearchingByAddress() || (mode === 'holdings' && isLoadingBalances())) {
+        <div class="flex flex-col items-center justify-center py-10 gap-3">
+          <span class="material-symbols-outlined text-[var(--orion-accent)] text-[28px] orion-spin" aria-hidden="true">refresh</span>
+          <p class="text-[var(--orion-muted)] text-[12px]">
+            {{ isSearchingByAddress() ? 'Searching by address…' : 'Loading tokens…' }}
+          </p>
+        </div>
+      } @else if (filteredTokens().length === 0) {
+        <div class="flex flex-col items-center justify-center py-10 gap-2 text-center">
+          <span class="material-symbols-outlined text-[var(--orion-subtle)] text-[40px]" aria-hidden="true">search_off</span>
+          @if (mode === 'holdings') {
+            <p class="text-[var(--orion-text)] text-[13px]">
+              {{ searchQuery ? 'None of your tokens match' : 'No tokens with a balance on this network' }}
+            </p>
+            <p class="text-[var(--orion-muted)] text-[11px] max-w-[280px]">
+              You can only send tokens you hold. Top up or switch network above.
+            </p>
+          } @else if (listTab() === 'rwa') {
+            <p class="text-[var(--orion-text)] text-[13px]">
+              {{ searchQuery ? 'No RWA tokens match' : 'No RWA tokens listed on this network yet' }}
+            </p>
+            <p class="text-[var(--orion-muted)] text-[11px] max-w-[280px]">
+              Tokenized treasuries and gold live mostly on Ethereum.
+            </p>
+            @if (!isNetworkLocked() && selectedNetwork()?.id !== 1) {
+              <button type="button" class="orion-btn-ghost mt-2" style="padding: 8px 16px; font-size: 13px;" (click)="switchToEthereum()">
+                Show Ethereum RWAs
+              </button>
+            }
+          } @else {
+            <p class="text-[var(--orion-text)] text-[13px]">No verified tokens match</p>
+            <p class="text-[var(--orion-muted)] text-[11px] max-w-[280px]">
+              {{ isAddressQuery(searchQuery) ? 'Token not supported on this network' : 'We hide tokens with no liquidity. Paste a contract address if you know exactly which token you want.' }}
+            </p>
+          }
+        </div>
+      } @else {
+        <div class="py-2 space-y-0.5">
+          @if (importedToken(); as imported) {
+            <div
+              class="rounded-[12px] px-3 py-2 mb-2 text-[12px] flex items-start gap-2"
+              [style.background]="(importedTokenRisk() === 'high' || importedTokenRisk() === 'critical') ? 'var(--orion-danger-tint, rgba(255,80,80,0.12))' : 'var(--orion-warning-tint, rgba(255,176,32,0.12))'"
+              [style.color]="(importedTokenRisk() === 'high' || importedTokenRisk() === 'critical') ? 'var(--orion-danger, #ff5050)' : 'var(--orion-warning, #ffb020)'"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[16px] leading-none mt-0.5" aria-hidden="true">warning</span>
+              <div class="flex-1">
+                <strong class="font-semibold">Imported token. Verify carefully.</strong>
+                <span class="block opacity-90 mt-0.5">
+                  @switch (importedTokenRisk()) {
+                    @case (null) { Running security check… }
+                    @case ('safe') { Security check passed, but always verify the contract address matches the one you trust. }
+                    @case ('low') { Minor warnings detected. Review before approving. }
+                    @case ('medium') { Medium risk flagged by our security provider. Proceed only if you trust this contract. }
+                    @case ('high') { HIGH risk flagged. Do not approve unless you control the contract. }
+                    @case ('critical') { CRITICAL risk: likely scam, honeypot, or freezable token. Avoid. }
+                    @case ('unknown') { Security check unavailable right now. Verify this contract yourself before trading. }
+                  }
+                </span>
+                <span class="block font-mono text-[11px] mt-1 opacity-70 break-all">{{ imported.address }}</span>
+              </div>
+            </div>
+          }
+          @for (token of filteredTokens(); track token.address) {
+            <!-- Wrapper div + inner select button: rows were click-only divs,
+                 so picking any searched token (including imported ones — the
+                 riskiest flow) was impossible by keyboard. The favourite
+                 toggle stays a sibling, not a nested interactive element. -->
+            <div
+              class="orion-token-list-row group"
+              [class.selected]="selectedToken?.address === token.address && selectedToken?.chainId === token.chainId"
+            >
+              <button
+                type="button"
+                class="row-main"
+                (click)="selectToken(token)"
+              >
+                <img
+                  [src]="tokenIcon(token)"
+                  [alt]="token.symbol"
+                  (error)="onImageError($event)"
+                />
+                <span class="flex-1 min-w-0 block text-left">
+                  <span class="flex items-center gap-2">
+                    <span class="text-[var(--orion-text)] font-semibold text-[15px] leading-tight">{{ token.symbol }}</span>
+                    @if (selectedToken?.address === token.address && selectedToken?.chainId === token.chainId) {
+                      <!-- Quiet non-colour cue; the row tint carries the rest. -->
+                      <span class="material-symbols-outlined text-[14px] text-[var(--orion-accent-text)]" aria-hidden="true">check</span>
+                      <span class="sr-only">Currently selected</span>
+                    }
+                  </span>
+                  <span class="block text-[var(--orion-muted)] text-[12px] truncate mt-0.5">
+                    @if (listTab() === 'rwa' && rwaCategory(token); as category) {
+                      {{ category }} · on {{ selectedNetwork()?.name }}
+                    } @else {
+                      {{ token.name }}
+                    }
+                  </span>
+                </span>
+
+                @if (getTokenBalance(token); as balance) {
+                  <span class="block text-right shrink-0">
+                    <span class="block text-[var(--orion-text)] text-[14px] font-semibold orion-tabular leading-tight">{{ formatBalance(balance.balance) }}</span>
+                    <span class="block text-[var(--orion-muted)] text-[11.5px] orion-tabular mt-0.5">${{ balance.balanceUSD.toFixed(2) }}</span>
+                  </span>
+                }
+              </button>
+
+              <button
+                type="button"
+                class="p-1 rounded-lg transition-all shrink-0"
+                [class.token-fav-reveal]="!isFavorite(token)"
+                [style.color]="isFavorite(token) ? 'var(--orion-danger)' : 'var(--orion-subtle)'"
+                (click)="toggleFavorite($event, token)"
+                [attr.aria-label]="(isFavorite(token) ? 'Remove ' : 'Add ') + token.symbol + (isFavorite(token) ? ' from favorites' : ' to favorites')"
+                [title]="isFavorite(token) ? 'Remove from favorites' : 'Add to favorites'"
+              >
+                <span
+                  class="material-symbols-outlined text-[16px]"
+                  aria-hidden="true"
+                  [style.font-variation-settings]="isFavorite(token) ? '\'FILL\' 1' : '\'FILL\' 0'"
+                >favorite</span>
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Footer. No "Manage token lists" affordance until the feature
+         exists — a styled button that does nothing erodes trust at exactly
+         the moment a user is hunting for a missing token. -->
+    <footer class="flex items-center justify-between px-6 py-3 border-t shrink-0" style="border-color: var(--orion-border);">
+      <span class="text-[12px] text-[var(--orion-muted)]">
+        {{ filteredTokens().length }} {{ mode === 'holdings' ? 'tokens you hold' : 'tokens' }} on {{ selectedNetwork()?.name }}
+      </span>
+      <span class="text-[11px] text-[var(--orion-subtle)]">
+        {{ mode === 'holdings' ? 'Showing only tokens with a balance' : "Can't find a token? Paste its contract address" }}
+      </span>
+    </footer>
+
+  </div>
+</div>

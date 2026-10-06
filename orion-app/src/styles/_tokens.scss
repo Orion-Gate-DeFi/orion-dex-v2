@@ -1,0 +1,151 @@
+// =============================================================================
+// ORION DESIGN TOKENS
+// =============================================================================
+//
+// Neobank-style design system for the new horizontal swap UI.
+// Flat surfaces, one blue accent, no blur/glass effects.
+//
+// @author Orion DEX Team
+// @version 2.0.0 — neutral graphite recalibration (product direction:
+//                  more minimal, less "AI dark dashboard"). The neutrals
+//                  were blue-tinted navy, which together with a blue accent
+//                  read as the default LLM aesthetic; they are now pure
+//                  graphite so the single blue accent is the ONLY blue on
+//                  screen. v1.1.0 had recalibrated the accent for WCAG AA
+//                  (white button text 5.28:1) and unified on Manrope.
+
+:root {
+  // ---------------------------------------------------------------------------
+  // Surfaces (neutral graphite ladder — no blue cast)
+  // ---------------------------------------------------------------------------
+  --orion-bg:             #0C0C0E;
+  --orion-surface:        #141417;
+  --orion-surface-2:      #1B1B1F;
+  --orion-surface-3:      #242429;
+
+  // ---------------------------------------------------------------------------
+  // Borders
+  // ---------------------------------------------------------------------------
+  --orion-border:         #26262C;
+  --orion-border-strong:  #34343C;
+
+  // ---------------------------------------------------------------------------
+  // Text (off-white, not pure #fff — preserves depth on dark surfaces)
+  // ---------------------------------------------------------------------------
+  --orion-text:           #F5F5F7;
+  --orion-muted:          #9C9CA6;
+  // ≥4.5:1 on every surface level used for body-size text (WCAG AA).
+  --orion-subtle:         #8A8A95;
+
+  // ---------------------------------------------------------------------------
+  // Accent (single blue)
+  // ---------------------------------------------------------------------------
+  // #0066E0 puts white button text at 5.28:1 (AA for 15px/600); the hover
+  // darkens (5.98:1) instead of brightening — a lighter hover would drop
+  // below 4.5:1 again. Keep #0075FF-class brightness for icons/rings only.
+  --orion-accent:         #0066E0;
+  --orion-accent-hover:   #005FCC;
+  --orion-accent-tint:    rgba(0, 102, 224, 0.12);
+  // Accent as TEXT on dark surfaces needs the opposite correction: the
+  // button-safe #0066E0 is only ~2.7:1 on surface-3. Use this for small
+  // accent-coloured text/icons on dark backgrounds (≥4.5:1 everywhere).
+  --orion-accent-text:    #4D9FFF;
+  // Text selection needs more alpha than the 12% tint to stay visible.
+  --orion-selection:      rgba(0, 102, 224, 0.45);
+
+  // ---------------------------------------------------------------------------
+  // Agent glow — cool counterweights to the blue accent for the AI assistant
+  // ---------------------------------------------------------------------------
+  // Mirror of the mobile Orbit DS "AgentEdgeGlow" hues (glowIce / glowViolet)
+  // so the web assistant reads as the same product. DECORATIVE ONLY — never
+  // text or surfaces (contrast-unverified); used solely in the rotating
+  // edge-glow sweep (see .orion-agent-glow in _animations.scss).
+  --orion-glow-ice:       #7FB8E8;
+  --orion-glow-violet:    #9B7FE8;
+
+  // ---------------------------------------------------------------------------
+  // Status — "Starlight" calibration
+  // ---------------------------------------------------------------------------
+  // Calmer than the previous neon mint / hot red: status colours should
+  // inform, not glow. All ≥4.5:1 as text on every surface level.
+  //
+  // The -rgb triplets exist for alpha composition in inline styles
+  // (`rgba(var(--orion-danger-rgb), 0.14)`) — components must read these
+  // instead of hardcoding triplets, which silently go stale when the hex
+  // moves (the old #E8555A lingered in transaction-health after the AA
+  // recalibration). Keep each triplet in sync with the hex beside it.
+  --orion-success:        #2EBD85;
+  --orion-success-rgb:    46, 189, 133;
+  --orion-success-tint:   rgba(46, 189, 133, 0.12);
+  --orion-warning:        #E8A33D;
+  --orion-warning-tint:   rgba(232, 163, 61, 0.12);
+  // Danger lightened from #E8555A (same warm hue): the old value was 4.48:1
+  // for danger text ON the danger tint composited over --orion-surface —
+  // just under AA. #EC6A6E measures (danger-on-tint / plain-on-surface):
+  // bg 5.53/6.38, surface 5.10/6.00, surface-2 4.72/5.60 — every base the
+  // tint boxes actually sit on (modals/cards/page bg) is now ≥4.5:1.
+  --orion-danger:         #EC6A6E;
+  --orion-danger-rgb:     236, 106, 110;
+  --orion-danger-tint:    rgba(236, 106, 110, 0.13);
+
+  // ---------------------------------------------------------------------------
+  // Categorical chart ramp — "Starlight", DATA VISUALIZATION ONLY
+  // ---------------------------------------------------------------------------
+  // Concept: the UI is a cold night sky (graphite + one cobalt accent);
+  // DATA glows warm like stars. Gold leads after the brand blue — value
+  // reads as value. No cyan, no neon: that family is the generated-UI tell
+  // we deliberately retired. Neutral tail is for "Other" buckets.
+  --orion-chart-1:     #4D9FFF;  // Orion blue (brand)
+  --orion-chart-2:     #E8B45A;  // star gold
+  --orion-chart-3:     #87C58F;  // sage
+  --orion-chart-4:     #E3866F;  // ember
+  --orion-chart-5:     #D98BA6;  // dawn rose
+  --orion-chart-other: #4A4A55;  // neutral tail
+
+  // ---------------------------------------------------------------------------
+  // Transaction Health palette (by risk level) — aligned with Starlight
+  // ---------------------------------------------------------------------------
+  // No `critical` entry: critical detail rows render with --orion-danger
+  // (the old --orion-health-critical held the retired #E8555A with zero
+  // consumers). The -rgb triplet feeds the caution tier's alpha tints in
+  // transaction-health — same sync rule as the status triplets above.
+  --orion-health-safe:       #2EBD85;
+  --orion-health-low:        #8FC78F;
+  --orion-health-medium:     #E8B45A;
+  --orion-health-medium-rgb: 232, 180, 90;
+  --orion-health-high:       #E3866F;
+
+  // ---------------------------------------------------------------------------
+  // Radii
+  // ---------------------------------------------------------------------------
+  --orion-radius-card:   20px;
+  --orion-radius-panel:  16px;
+  --orion-radius-button: 14px;
+  --orion-radius-chip:   999px;
+
+  // ---------------------------------------------------------------------------
+  // Z-index scale
+  // ---------------------------------------------------------------------------
+  // Names the magic values that grew organically across the app
+  // (40 / 50 / 999998 / 999999). Layers, bottom to top:
+  //   sticky    — fixed in-page chrome (dashboard quick-bar)
+  //   dropdown  — popovers/menus inside the page flow (header, settings)
+  //   modal-backdrop / modal — .orion-backdrop + modal wrappers
+  //   toast     — notifications; ALWAYS the top layer (error toasts carry
+  //               instructions and must stay readable above an open modal)
+  --z-sticky:          40;
+  --z-dropdown:        50;
+  --z-modal-backdrop:  999998;
+  --z-modal:           999999;
+  --z-toast:           1000000;
+
+  // ---------------------------------------------------------------------------
+  // Typography
+  // ---------------------------------------------------------------------------
+  // One sans across the whole app. Inter was used only by the amount input,
+  // which put two near-identical grotesques on the same card — Manrope (the
+  // body font) wins. JetBrains Mono is reserved for addresses/tx hashes via
+  // .orion-mono.
+  --orion-font-display: 'Manrope', system-ui, -apple-system, sans-serif;
+  --orion-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+}

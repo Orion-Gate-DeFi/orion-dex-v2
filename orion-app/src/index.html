@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="utf-8">
+  <title>Orion DEX - Swap Crypto with Best Rates</title>
+  <base href="/">
+  <!-- viewport-fit=cover: required for env(safe-area-inset-*) to resolve to a
+       non-zero value on notched devices (the toast + agent launcher rely on
+       it). Without it the insets are 0 and content can sit under the home
+       indicator. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Orion DEX - Swap crypto across 30+ DEXs with the best rates.">
+  <meta name="theme-color" content="#0C0C0E">
+  <!-- Open Graph / Social Media Preview -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://app.oriongate.top/">
+  <meta property="og:title" content="Orion DEX - Best Crypto Swap Rates">
+  <meta property="og:description"
+    content="Swap crypto across 30+ DEXs and bridges with the best rates. Cross-chain swaps, low fees, powered by LI.FI aggregation.">
+  <meta property="og:image" content="https://app.oriongate.top/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Orion DEX">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://app.oriongate.top/">
+  <meta name="twitter:title" content="Orion DEX - Best Crypto Swap Rates">
+  <meta name="twitter:description"
+    content="Swap crypto across 30+ DEXs and bridges with the best rates. Cross-chain swaps, low fees, powered by LI.FI aggregation.">
+  <meta name="twitter:image" content="https://app.oriongate.top/og-image.png">
+
+  <!-- Additional Meta Tags -->
+  <meta name="keywords"
+    content="crypto, swap, DEX, DeFi, cross-chain, bridge, ethereum, polygon, arbitrum, optimism, base, LI.FI">
+  <meta name="author" content="Orion DEX Team">
+
+  <!-- Security headers that only work as HTTP response headers (X-Frame-Options,
+       X-Content-Type-Options, CSP frame-ancestors) live in public/_headers —
+       browsers IGNORE the http-equiv <meta> versions (and warn). The referrer
+       policy below is honoured as a <meta>. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+
+  <!-- Content Security Policy
+       'unsafe-inline' was removed from script-src: Angular's AOT build emits
+       no inline scripts, and Privy / WalletConnect load from their own
+       origins listed below. If a third-party script later breaks with a CSP
+       inline-script error, prefer a hash/nonce for that one script over
+       re-adding 'unsafe-inline' globally (it neuters XSS protection).
+       'unsafe-eval' was removed earlier for the same reason: AOT does not
+       need runtime code generation, and Privy + WalletConnect do not require it.
+       connect-src is kept to endpoints the app actually calls — npm registry,
+       Alchemy and QuickNode entries were dropped after grep confirmed zero
+       references in src/ (public RPCs only; see public-rpcs.constant.ts).
+
+       FUNDING (/buy, Privy funding kit): only the Stripe on-ramp needs CSP
+       allowances. Privy renders Stripe's on-ramp as embedded components —
+       iframes inside OUR document — while every other provider (MoonPay,
+       Coinbase, Meld) is opened in a POPUP WINDOW (a separate browsing
+       context our CSP does not govern), so those need no entries at all.
+       Each funding entry below, and why it is there:
+         script-src  https://js.stripe.com        — Stripe.js v3 + the
+                                                    crypto-onramp component
+                                                    script the SDK injects.
+         script-src  https://crypto-js.stripe.com — crypto-onramp-outer.js;
+                                                    Stripe forbids self-hosting
+                                                    it.
+         frame-src   https://js.stripe.com        — Stripe.js' own frames.
+         frame-src   https://crypto.link.com      — the on-ramp UI iframe
+                                                    (Stripe-owned origin).
+         connect-src https://crypto.link.com      — that iframe's XHR channel.
+         connect-src https://api.stripe.com       — Stripe.js API calls.
+         connect-src https://api.relay.link       — Privy's documented funding-
+                                                    kit requirement (bridging
+                                                    quotes). Mainnet only; the
+                                                    testnets host is omitted.
+       Deliberately NOT added: https://*.js.stripe.com, which Stripe documents
+       as a performance option ("allows Stripe.js to improve performance by
+       starting frames on different origins"), not a requirement. -->
+
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://auth.privy.io https://verify.walletconnect.com https://*.walletconnect.org https://www.googletagmanager.com
+      https://js.stripe.com
+      https://crypto-js.stripe.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com data:;
+    img-src 'self' data: https: blob:;
+    connect-src 'self'
+      https://api.oriongate.services
+      https://api.gopluslabs.io
+      https://api.dexscreener.com
+      https://auth.privy.io
+      https://*.privy.io
+      https://rpc.privy.systems
+      https://*.rpc.privy.systems
+      https://*.walletconnect.com
+      https://*.walletconnect.org
+      wss://*.walletconnect.com
+      wss://*.walletconnect.org
+      https://*.eth.link
+      https://mainnet.base.org
+      https://*.drpc.org
+      https://base.drpc.org
+      https://rpc.ankr.com
+      https://*.llamarpc.com
+      https://eth.llamarpc.com
+      https://base.llamarpc.com
+      https://polygon.llamarpc.com
+      https://arbitrum.llamarpc.com
+      https://optimism.llamarpc.com
+      https://arb1.arbitrum.io
+      https://polygon-rpc.com
+      https://mainnet.optimism.io
+      https://cloudflare-eth.com
+      https://bsc-dataseed.bnbchain.org
+      https://api.avax.network
+      https://*.publicnode.com
+      https://gasstation.polygon.technology
+      https://*.polygon.technology
+      https://*.oriongate.services
+      https://li.quest
+      https://www.googletagmanager.com
+      https://*.google-analytics.com
+      https://*.analytics.google.com
+      https://*.ingest.sentry.io
+      https://*.ingest.us.sentry.io
+      https://*.ingest.de.sentry.io
+      https://api.stripe.com
+      https://crypto.link.com
+      https://api.relay.link;
+    frame-src 'self' https://auth.privy.io https://verify.walletconnect.com
+      https://js.stripe.com
+      https://crypto.link.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+  ">
+  <!-- NOTE: upgrade-insecure-requests was removed from the CSP above.
+       WebKit/Safari (unlike Chrome/Firefox) upgrades even localhost
+       subresources to https, which breaks every local/E2E run with a white
+       screen. Production is fully HTTPS with no http subresources, so the
+       directive added nothing there. -->
+
+  <!-- Preconnect to fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Web fonts. Loaded here (instead of via SCSS @import) so they parse
+       in parallel with the HTML and don't conflict with Sass `@use`
+       hoisting rules. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="icon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icon/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon/android-chrome-512x512.png">
+  <link rel="shortcut icon" type="image/x-icon" href="icon/favicon.ico">
+</head>
+
+<body>
+  <app-root></app-root>
+</body>
+
+</html>

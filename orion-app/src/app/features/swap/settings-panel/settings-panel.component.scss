@@ -1,0 +1,44 @@
+// Phone layout for the settings popover. The popover is anchored to the
+// header on desktop; opened from the bottom trigger on a phone it rendered
+// off-view. Below 720px (same cut as the rest of the swap flow) the SAME
+// element becomes a centered modal with a backdrop — the slippage-confirm
+// modal idiom already used inside this component. Desktop is untouched: the
+// backdrop is display:none and the anchored absolute positioning still comes
+// from the template's utility classes.
+.orion-settings-pop-backdrop {
+  display: none;
+}
+
+@media (max-width: 719.98px) {
+  .orion-settings-pop-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    // Matches .orion-backdrop (flat, no blur — see _components.scss).
+    background: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-modal-backdrop);
+  }
+
+  .orion-settings-pop {
+    // inset + margin centering, NOT translate(-50%, -50%): .orion-scale-in
+    // animates `transform`, so a translate would be overridden for the
+    // duration of the entry animation and the panel would jump on finish.
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    // dvh tracks the visible viewport on mobile (URL bar collapse); the
+    // plain vh line is the fallback for older browsers.
+    max-height: 85vh;
+    max-height: 85dvh;
+    z-index: var(--z-modal);
+  }
+
+  // While the slippage-confirm modal is open, drop the panel BELOW the
+  // confirm's backdrop. Both the panel and the confirm wrapper sit at
+  // --z-modal on phones, so the confirm backdrop (--z-modal-backdrop) could
+  // never cover the panel — the panel bled through next to its own modal.
+  .orion-settings-pop.has-confirm {
+    z-index: calc(var(--z-modal-backdrop) - 1);
+  }
+}

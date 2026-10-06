@@ -1,0 +1,1308 @@
+<div class="flex-1 flex items-start justify-center p-3 lg:p-4 relative min-h-0 orion-screen-enter">
+  <div
+    class="w-full pt-6"
+    [ngClass]="currentStep() === 'review' ? 'max-w-[920px]' : 'max-w-[1120px]'"
+  >
+      <!-- Persistent 3-step indicator -->
+      <div class="mb-5 flex justify-center">
+        <app-orion-stepper [steps]="stepperSteps" [activeIndex]="stepperActiveIndex()" />
+      </div>
+
+      <!-- Header (only swap step keeps a top header; review/status render their own h1 inline) -->
+      @if (currentStep() === 'swap') {
+        <div class="flex items-center gap-3 mb-5">
+          <!-- #stepHeading + tabindex=-1: focus target after step changes
+               (see focusStepHeading) — one heading per step carries the ref. -->
+          <h1 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-[var(--orion-text)] tracking-[-0.01em]">Swap tokens</h1>
+          <div class="flex-1"></div>
+          <div class="relative">
+            <button
+              class="orion-btn-icon"
+              (click)="showSettings.set(!showSettings())"
+              aria-label="Open swap settings"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+            </button>
+            @if (showSettings()) {
+              <app-settings-panel
+                (close)="showSettings.set(false)"
+                (slippageCommitted)="onSlippageCommitted()"
+              />
+            }
+          </div>
+        </div>
+      }
+
+    <!-- ====== Step: Swap (new horizontal layout — 3 separate cards) ====== -->
+    @if (currentStep() === 'swap') {
+      <!-- 3 separate cards with breathing room between them -->
+      <div class="orion-swap-card-grid orion-scale-in">
+        <div class="orion-card min-h-[240px]">
+          <app-orion-amount-panel
+            kind="pay"
+            [token]="fromToken()"
+            [amount]="payInputValue"
+            [usd]="paySubLine()"
+            [inputMode]="inputMode()"
+            [canToggleMode]="canToggleInputMode()"
+            [balance]="fromBalance()"
+            [showBalance]="!!walletService.isConnected()"
+            [showPercents]="!!(fromToken() && walletService.isConnected())"
+            [activePercent]="activePercent()"
+            (amountChange)="onPayAmountChange($event)"
+            (keydown)="onAmountKeydown($event)"
+            (toggleMode)="toggleInputMode()"
+            (tokenSelect)="openTokenSelector('from')"
+            (percentPick)="setPercentage($event)"
+          />
+        </div>
+
+        <!-- canRefresh: valid inputs are enough — after a failed fetch
+             quote() is null and a refresh is exactly what the user needs. -->
+        <div class="orion-card orion-center-card min-h-[240px] flex flex-col">
+          <app-orion-swap-center
+            class="flex-1 min-h-0"
+            [fromSymbol]="fromToken()?.symbol || null"
+            [toSymbol]="toToken()?.symbol || null"
+            [rate]="lastExchangeRate()"
+            [canFlip]="!!fromToken() && !!toToken()"
+            [canRefresh]="!!quote() || hasValidQuoteInputs()"
+            [spinning]="spinRefresh() || isLoading()"
+            [providerLabel]="providerLabel()"
+            (flip)="swapTokens()"
+            (refresh)="refreshQuoteWithSpin()"
+          />
+          <!-- Quote freshness under the rate (desktop column only — phones
+               carry it as the Rate cell's sub in the info strip). The slot
+               keeps a constant height so the chip's arrival never reflows
+               the card row. NOT a live region: it ticks every second. -->
+          <div class="hidden lg:flex h-[26px] items-start justify-center">
+            @if (isLoading()) {
+              <span class="text-[11px] text-[var(--orion-subtle)] inline-flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px] orion-spin" aria-hidden="true">autorenew</span>
+                Updating…
+              </span>
+            } @else if (quote()) {
+              <span class="text-[11px] text-[var(--orion-subtle)] orion-tabular inline-flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]" aria-hidden="true">autorenew</span>
+                Updates in {{ quoteCountdown() }}s
+              </span>
+            }
+          </div>
+        </div>
+
+        <!-- Phones replace the centre column with the classic vertical-DEX
+             seam button sitting between the joined pay/get panels. -->
+        <button
+          type="button"
+          class="orion-flip-seam"
+          aria-label="Flip swap direction"
+          [disabled]="!fromToken() || !toToken()"
+          (click)="swapTokens()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">swap_vert</span>
+        </button>
+
+        <div class="orion-card min-h-[240px]">
+          <app-orion-amount-panel
+            kind="get"
+            [token]="toToken()"
+            [amount]="toAmountDisplay()"
+            [usd]="toAmountUSD()"
+            [balance]="toBalance()"
+            [showBalance]="!!walletService.isConnected()"
+            [loading]="isLoading()"
+            (tokenSelect)="openTokenSelector('to')"
+          />
+        </div>
+      </div>
+
+      <!-- 5-fact info strip -->
+      @if (quote()) {
+        <div class="mt-3">
+          <app-orion-info-strip
+            [cells]="infoCells()"
+            (cellClick)="toggleInfoCell($event)"
+          />
+        </div>
+      } @else if (isLoading() && fromToken() && toToken()) {
+        <!-- Same strip, placeholder cells: reserves the strip's exact height
+             on every breakpoint while the first quote is in flight, so the
+             CTA below doesn't jump down the moment the quote lands. -->
+        <div class="mt-3" aria-hidden="true">
+          <app-orion-info-strip [cells]="infoCellsPlaceholder" />
+        </div>
+      }
+      <!-- Detail panel: expands in place below the strip when Safety is clicked -->
+      @if (quote() && expandedInfoCell() === 'safety') {
+        <div class="mt-3">
+          <app-transaction-health
+            [fromToken]="fromToken()"
+            [toToken]="toToken()"
+            [embedded]="true"
+          />
+        </div>
+      }
+
+      <!-- Cross-chain indicator -->
+      @if (isCrossChain() && fromToken() && toToken()) {
+        <div class="mt-3 flex items-start gap-3 p-3 rounded-[12px]"
+             style="background: var(--orion-warning-tint); border: 1px solid transparent;">
+          <span class="material-symbols-outlined mt-0.5" style="color: var(--orion-warning);" aria-hidden="true">sync_alt</span>
+          <div>
+            <p class="text-[13px] font-medium" style="color: var(--orion-warning);">Cross-chain swap</p>
+            <p class="text-[11px] mt-0.5 text-[var(--orion-muted)]">
+              {{ getNetworkName(fromToken()!.chainId) }} → {{ getNetworkName(toToken()!.chainId) }}. Takes 5–30 minutes.
+            </p>
+          </div>
+        </div>
+      }
+
+      <!-- One-time MEV honesty hint. Injected wallets on Ethereum mainnet
+           broadcast to the public mempool; Flashbots Protect is the user's
+           own lever against frontrunning. Dismissal persists (localStorage)
+           — this is a tip, not a gate. -->
+      @if (showMevHint()) {
+        <div class="mt-3 flex items-start gap-3 p-3 rounded-[12px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)]" role="note">
+          <span class="material-symbols-outlined mt-0.5 text-[15px] text-[var(--orion-muted)]" aria-hidden="true">shield</span>
+          <p class="flex-1 text-[12px] leading-relaxed text-[var(--orion-muted)] m-0">
+            Tip: MetaMask users can reduce frontrunning risk with
+            <a
+              href="https://protect.flashbots.net"
+              target="_blank"
+              rel="noopener"
+              class="underline underline-offset-2 text-[var(--orion-accent-text)]"
+            >Flashbots Protect RPC</a>.
+          </p>
+          <button
+            type="button"
+            class="orion-btn-icon"
+            aria-label="Dismiss Flashbots Protect tip"
+            (click)="dismissMevHint()"
+          >
+            <span class="material-symbols-outlined text-[14px]" aria-hidden="true">close</span>
+          </button>
+        </div>
+      }
+
+      <!-- Beginner explainer: collapsed by default, experts ignore it -->
+      <details class="mt-3 rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3 orion-explainer">
+        <summary class="flex items-center justify-between cursor-pointer list-none">
+          <span class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[15px] text-[var(--orion-muted)]" aria-hidden="true">lightbulb</span>
+            <span class="text-[13.5px] font-medium text-[var(--orion-text)]">New to swaps? Here's what's about to happen</span>
+          </span>
+          <span class="material-symbols-outlined text-[15px] text-[var(--orion-muted)] chev" aria-hidden="true">expand_more</span>
+        </summary>
+        <div class="orion-explainer-grid mt-3">
+          <div>
+            <div class="orion-label mb-1.5 text-[var(--orion-text)] font-semibold">What's a swap?</div>
+            <p class="text-[12.5px] text-[var(--orion-muted)] leading-relaxed m-0">
+              You're trading one token for another at the best available rate right now. No order book, no counterparty.
+            </p>
+          </div>
+          <div>
+            <div class="orion-label mb-1.5 text-[var(--orion-text)] font-semibold">What's the fee?</div>
+            <p class="text-[12.5px] text-[var(--orion-muted)] leading-relaxed m-0">
+              The network charges gas to process your transaction. It's paid in the native token of the source chain, not a platform fee.
+            </p>
+          </div>
+          <div>
+            <div class="orion-label mb-1.5 text-[var(--orion-text)] font-semibold">Why "verified"?</div>
+            <p class="text-[12.5px] text-[var(--orion-muted)] leading-relaxed m-0">
+              We check the destination token against known-safe lists and on-chain scam signals before you commit.
+            </p>
+          </div>
+          <div>
+            <div class="orion-label mb-1.5 text-[var(--orion-text)] font-semibold">Why approve first?</div>
+            <p class="text-[12.5px] text-[var(--orion-muted)] leading-relaxed m-0">
+              Tokens require a one-time permission so the exchange contract can move them. We only request what this swap needs.
+            </p>
+          </div>
+        </div>
+      </details>
+
+      <!-- Token-security gates, two tiers:
+           1. Hard block — deterministic unsellable-token flags (honeypot,
+              counterfeit, cannot_sell_all, >50% sell tax). Swapping is
+              disabled outright; no checkbox can bypass it, same contract as
+              quoteRisk().hardBlock.
+           2. Ack gate — high/critical heuristics AND the fail-closed
+              'unknown' verdict (security check unavailable) require an
+              explicit acknowledgement before the CTA unlocks. -->
+      @if (toToken() && hardBlockToken()) {
+        <div
+          class="mt-4 rounded-[14px] px-4 py-3 flex items-start gap-3 text-[13px]"
+          style="background: var(--orion-danger-tint); color: var(--orion-danger);"
+          role="alert"
+        >
+          <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">block</span>
+          <div class="flex-1">
+            <strong class="font-semibold">Swapping disabled</strong>
+            <p class="mt-1 opacity-90">
+              This token is flagged as unsellable (honeypot). Swapping is disabled.
+            </p>
+          </div>
+        </div>
+      } @else if (toToken() && requiresTokenRiskAck()) {
+        <div
+          class="mt-4 rounded-[14px] px-4 py-3 flex items-start gap-3 text-[13px]"
+          [style.background]="isCriticalRiskToken() ? 'var(--orion-danger-tint)' : 'var(--orion-warning-tint)'"
+          [style.color]="isCriticalRiskToken() ? 'var(--orion-danger)' : 'var(--orion-warning)'"
+          role="alert"
+        >
+          <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">warning</span>
+          <div class="flex-1">
+            <strong class="font-semibold">
+              @if (isCriticalRiskToken()) {
+                Critical risk detected
+              } @else if (isHighRiskToken()) {
+                High-risk token
+              } @else {
+                Token couldn't be verified
+              }
+            </strong>
+            <p class="mt-1 opacity-90">
+              @if (isUnverifiedToken()) {
+                The security check for {{ toToken()?.symbol }} didn't return a verdict
+                (provider unavailable or no data). Treat it as unverified — continue
+                only if you trust this token.
+              } @else {
+                Our security provider flagged {{ toToken()?.symbol }} as
+                {{ isCriticalRiskToken() ? 'critical risk: likely scam, honeypot, or freezable.' : 'high-risk.' }}
+                Continue only if you know exactly what this token does.
+              }
+            </p>
+            <label class="flex items-center gap-2 mt-2 cursor-pointer">
+              <input
+                type="checkbox"
+                [checked]="acknowledgedHighRisk()"
+                (change)="acknowledgedHighRisk.set(!acknowledgedHighRisk())"
+                class="w-4 h-4"
+              />
+              <span class="font-medium">I understand the risk and want to proceed.</span>
+            </label>
+          </div>
+        </div>
+      }
+
+      <!-- CTA. aria-live="polite" so screen readers announce state changes
+           ("Getting quote…" → "Approve USDC" → "Review swap") without
+           yanking focus, and aria-busy reflects the loading state. -->
+      <div
+        class="mt-4 flex gap-3"
+        role="region"
+        aria-label="Swap action"
+        aria-live="polite"
+        aria-atomic="true"
+        [attr.aria-busy]="isLoading() || isApproving()"
+      >
+        @if (!walletService.isConnected()) {
+          <button class="orion-btn-primary flex-1" (click)="walletService.connect()">
+            Connect wallet
+            <span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span>
+          </button>
+        } @else if (!fromToken() || !toToken()) {
+          <button class="orion-btn-primary flex-1" disabled>Select tokens</button>
+        } @else if (!fromAmount || isZeroAmount(fromAmount)) {
+          <button class="orion-btn-primary flex-1" disabled>Enter amount</button>
+        } @else if (error()) {
+          <!-- The error CTA is itself the retry: a failed fetch nulls quote(),
+               so without this the only way out was retyping the amount. The
+               label is bounded to one line; the full raw message lives in the
+               title attribute. -->
+          <button class="orion-btn-primary orion-btn-status flex-1"
+                  [disabled]="!hasValidQuoteInputs()"
+                  [title]="error()"
+                  (click)="retryQuote()"
+                  style="background: var(--orion-danger-tint); color: var(--orion-danger);">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            {{ quoteErrorCta() }}
+          </button>
+        } @else if (isInsufficientBalance()) {
+          <button class="orion-btn-primary orion-btn-status flex-1" disabled
+                  style="background: var(--orion-danger-tint); color: var(--orion-danger);">
+            Not enough {{ fromToken()?.symbol }}
+          </button>
+        } @else if (isLoading() || !quoteMatchesInput()) {
+          <!-- !quoteMatchesInput() covers the 500ms debounce window: the
+               PREVIOUS quote is still on screen but no longer matches what
+               the user typed — 'Review swap' here would execute the old
+               amount's quote. error/insufficient sit above so a failed fetch
+               or an over-balance amount still shows its message instantly. -->
+          <button class="orion-btn-primary orion-btn-status flex-1" disabled
+                  style="background: var(--orion-surface-3); color: var(--orion-muted);">
+            <span class="material-symbols-outlined orion-spin" aria-hidden="true">refresh</span>
+            Getting quote…
+          </button>
+        } @else if (isApproving()) {
+          <button class="orion-btn-primary orion-btn-status flex-1" disabled
+                  style="background: var(--orion-warning-tint); color: var(--orion-warning);">
+            <span class="material-symbols-outlined orion-spin" aria-hidden="true">refresh</span>
+            Approving {{ fromToken()?.symbol }}…
+          </button>
+        } @else if (hardBlockToken()) {
+          <!-- Deterministic unsellable token: no ack path exists. -->
+          <button class="orion-btn-primary orion-btn-status flex-1" disabled
+                  style="background: var(--orion-danger-tint); color: var(--orion-danger);">
+            <span class="material-symbols-outlined" aria-hidden="true">block</span>
+            Swapping disabled
+          </button>
+        } @else if (requiresTokenRiskAck() && !acknowledgedHighRisk()) {
+          <button class="orion-btn-primary orion-btn-status flex-1" disabled
+                  [style.background]="isCriticalRiskToken() ? 'var(--orion-danger-tint)' : 'var(--orion-warning-tint)'"
+                  [style.color]="isCriticalRiskToken() ? 'var(--orion-danger)' : 'var(--orion-warning)'">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            Acknowledge risk to continue
+          </button>
+        } @else if (needsApproval()) {
+          <button class="orion-btn-primary flex-1"
+                  style="background: var(--orion-warning); color: var(--orion-bg);"
+                  (click)="approveToken()">
+            <span class="material-symbols-outlined" aria-hidden="true">verified</span>
+            Approve {{ fromToken()?.symbol }}
+          </button>
+        } @else {
+          <button class="orion-btn-primary flex-1" (click)="goToReview()">
+            Review swap
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+          </button>
+        }
+        <!-- Settings live in the single "tune" button in the step header
+             (top-right). The duplicate ghost button that sat next to the
+             action button was removed — one settings entry point. -->
+      </div>
+    }
+
+    <!-- ====== Step: Review / Status ====== -->
+    @if (currentStep() !== 'swap') {
+    <div class="w-full">
+      <div>
+        <!-- ====== Step: Review ====== -->
+        @if (currentStep() === 'review' && quote()) {
+          <div class="flex items-center justify-between gap-3 mb-5 flex-wrap">
+            <h1 #stepHeading tabindex="-1" class="text-[22px] font-semibold text-white tracking-[-0.01em] leading-[30px] m-0">
+              Review your swap
+            </h1>
+            <!-- Freshness: the auto-refresh deliberately pauses here, but the
+                 quote still hard-expires at 45s — make that visible instead of
+                 failing at Confirm time. "Valid", not "locked": the silent
+                 re-quote can execute at a fresher price, only minimum received
+                 is guaranteed. role=status stays on the one-shot expired chip
+                 only — a live region on the ticking chip made screen readers
+                 announce every second. -->
+            @if (reviewQuoteExpired()) {
+              <span class="orion-chip-warning" role="status">
+                <span class="material-symbols-outlined text-[13px]" aria-hidden="true">history</span>
+                Quote expired
+              </span>
+            } @else {
+              <span class="orion-chip orion-tabular">
+                <span class="material-symbols-outlined text-[13px] text-[var(--orion-muted)]" aria-hidden="true">schedule</span>
+                Quote valid for {{ quoteSecondsLeft() }}s
+              </span>
+            }
+          </div>
+
+          <!-- Silent re-quote price gate: the pre-sign refresh came back with
+               a materially worse price than the one confirmed here, so the
+               execution was aborted. The numbers below already show the fresh
+               quote — an explicit new Confirm is required. -->
+          @if (requotePriceNotice(); as notice) {
+            <div
+              class="mb-4 rounded-[14px] px-4 py-3 flex items-start gap-3 text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">trending_down</span>
+              <div class="flex-1">
+                <strong class="font-semibold">Price moved</strong>
+                <p class="mt-1 opacity-90">
+                  You'd now receive
+                  <span class="orion-tabular font-medium">{{ formatTokenAmount(notice.newToAmount) }} {{ notice.toSymbol }}</span>
+                  instead of
+                  <span class="orion-tabular font-medium">{{ formatTokenAmount(notice.previousToAmount) }} {{ notice.toSymbol }}</span>@if (requotePriceDropLabel()) {<span class="orion-tabular font-medium"> ({{ requotePriceDropLabel() }})</span>}.
+                  <!-- Action phrase must match the CTA actually on screen:
+                       expired quote → Refresh button; hard-blocked fresh
+                       quote → Confirm stays disabled, only a smaller amount
+                       helps; otherwise → re-confirm. -->
+                  @if (reviewQuoteExpired()) {
+                    The quote has since expired — refresh it to continue.
+                  } @else if (quoteRisk().hardBlock) {
+                    The new price pushes this swap past the safe price-impact limit — reduce the amount to continue.
+                  } @else {
+                    Review the updated numbers below and confirm again to continue.
+                  }
+                </p>
+              </div>
+            </div>
+          }
+
+          <div class="orion-card p-7">
+            <!-- Two-column flow: paying / arrow / receiving (stacks <1024px) -->
+            <div class="orion-review-grid">
+              <!-- Paying -->
+              <div class="rounded-[16px] border border-[var(--orion-border)] bg-[var(--orion-surface-2)] p-5">
+                <span class="orion-label">You're paying</span>
+                <div class="flex items-center gap-3 mt-3">
+                  <img [src]="quote()!.fromToken.logoURI" [alt]="quote()!.fromToken.symbol"
+                       class="w-10 h-10 rounded-full bg-[var(--orion-surface-3)]"
+                       (error)="onImageError($event)">
+                  <div>
+                    <div class="text-[14px] font-semibold text-[var(--orion-text)]">{{ quote()!.fromToken.name }}</div>
+                    <div class="text-[12px] text-[var(--orion-muted)]">{{ quote()!.fromToken.symbol }} · on {{ getNetworkName(quote()!.fromToken.chainId) }}</div>
+                  </div>
+                </div>
+                <div class="text-[30px] font-semibold text-[var(--orion-text)] orion-tabular mt-4" style="letter-spacing: -0.02em;">
+                  {{ formatTokenAmount(quote()!.fromAmount) }} {{ quote()!.fromToken.symbol }}
+                </div>
+                <div class="text-[13px] text-[var(--orion-muted)] orion-tabular mt-1">
+                  ≈ {{ formatUsd(quote()!.fromAmountUSD) }}
+                </div>
+              </div>
+
+              <!-- Arrow -->
+              <div class="flex justify-center">
+                <div class="orion-flow-arrow w-11 h-11 rounded-full bg-[var(--orion-surface-2)] border border-[var(--orion-border)] flex items-center justify-center text-[var(--orion-muted)]">
+                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+                </div>
+              </div>
+
+              <!-- Receiving -->
+              <div class="rounded-[16px] border border-[var(--orion-border)] bg-[var(--orion-surface-2)] p-5">
+                <span class="orion-label">You'll receive</span>
+                <div class="flex items-center gap-3 mt-3">
+                  <img [src]="quote()!.toToken.logoURI" [alt]="quote()!.toToken.symbol"
+                       class="w-10 h-10 rounded-full bg-[var(--orion-surface-3)]"
+                       (error)="onImageError($event)">
+                  <div>
+                    <div class="text-[14px] font-semibold text-[var(--orion-text)]">{{ quote()!.toToken.name }}</div>
+                    <div class="text-[12px] text-[var(--orion-muted)]">{{ quote()!.toToken.symbol }} · on {{ getNetworkName(quote()!.toToken.chainId) }}</div>
+                  </div>
+                </div>
+                <div class="text-[30px] font-semibold orion-tabular mt-4" style="letter-spacing: -0.02em; color: var(--orion-success);">
+                  {{ formatTokenAmount(quote()!.toAmount) }} {{ quote()!.toToken.symbol }}
+                </div>
+                <div class="text-[13px] text-[var(--orion-muted)] orion-tabular mt-1">
+                  ≈ {{ formatUsd(quote()!.toAmountUSD) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Details grid: 4-up desktop, 2x2 phones -->
+            <div class="orion-detail-grid mt-6">
+              <div class="rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3.5 flex flex-col gap-1">
+                <span class="orion-label">Exchange rate</span>
+                <span class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ quote()!.exchangeRate }}</span>
+              </div>
+              <div class="rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3.5 flex flex-col gap-1">
+                <span class="orion-label">Network fee</span>
+                <!-- "—" when the quote carries the unknown-fee sentinel:
+                     a failed RPC estimate must not render as a $0.00 swap. -->
+                <span class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ gasCostDisplay(quote()!.gasCostUSD) }}</span>
+                <!-- Gas is paid in the chain's NATIVE token, never the swapped ERC-20. -->
+                <span class="text-[11.5px] text-[var(--orion-muted)]">
+                  {{ isGasEstimateKnown(quote()!.gasCostUSD) ? 'paid in ' + nativeSymbolFor(quote()!.fromToken.chainId) : 'estimate unavailable' }}
+                </span>
+              </div>
+              <div class="rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3.5 flex flex-col gap-1">
+                <span class="orion-label">Minimum received</span>
+                <span class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ quote()!.minimumReceived }} {{ quote()!.toToken.symbol }}</span>
+                <span class="text-[11.5px] text-[var(--orion-muted)]">{{ quote()!.slippage }}% slippage</span>
+              </div>
+              <div class="rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3.5 flex flex-col gap-1">
+                <span class="orion-label">Route</span>
+                <span class="text-[14px] font-medium text-[var(--orion-text)]">
+                  {{ isCrossChain() ? 'Cross-chain' : 'Direct swap' }}
+                </span>
+                <span class="text-[11.5px] text-[var(--orion-muted)]">
+                  @if (isCrossChain()) {
+                    5–30 min via bridge
+                  } @else if (providerLabel()) {
+                    {{ providerLabel() }}
+                  } @else {
+                    via aggregator
+                  }
+                </span>
+              </div>
+            </div>
+
+            <!-- Explainer -->
+            <details class="mt-4 rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-4 py-3">
+              <summary class="flex items-center justify-between cursor-pointer">
+                <span class="flex items-center gap-2.5">
+                  <span class="material-symbols-outlined text-[15px] text-[var(--orion-muted)]" aria-hidden="true">info</span>
+                  <span class="text-[13.5px] font-medium text-[var(--orion-text)]">What's minimum received?</span>
+                </span>
+                <span class="material-symbols-outlined text-[15px] text-[var(--orion-muted)]" aria-hidden="true">expand_more</span>
+              </summary>
+              <!-- Two honesty variants: the "swap cancels itself" guarantee
+                   only holds when the aggregator reported the floor its
+                   calldata enforces; the client-side estimate (ODOS) is a
+                   guide, not an on-chain check. -->
+              <div class="mt-2.5 text-[13px] text-[var(--orion-muted)] leading-relaxed">
+                @if (minimumReceivedIsEnforced()) {
+                  Prices move by the second. Between now and when your swap is mined, the rate could drift a tiny bit.
+                  The minimum is a floor: you'll never receive less than this amount, or the swap cancels itself.
+                } @else {
+                  Prices move by the second. Between now and when your swap is mined, the rate could drift a tiny bit.
+                  This minimum is estimated from your slippage setting — this route doesn't report an enforced
+                  on-chain floor, so the final amount can differ slightly.
+                }
+              </div>
+            </details>
+
+            <!-- Trust line: the contract the wallet will be asked to call —
+                 the one human-verifiable surface before signing (embedded
+                 wallets auto-sign with no wallet UI of their own). -->
+            @if (swapContractInfo(); as contract) {
+              <div class="mt-3 text-[12px] text-[var(--orion-subtle)] text-center">
+                Via {{ contract.label }} · contract
+                <a
+                  [href]="contract.explorerUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="orion-tabular text-[var(--orion-muted)] underline underline-offset-2 hover:text-[var(--orion-text)]"
+                >{{ contract.shortAddress }}</a>
+              </div>
+            }
+          </div>
+
+          <!-- Pre-sign simulation chip. eth_call against the swap calldata
+               surfaces "would revert / would succeed" before the user pays
+               gas. -->
+          <div
+            class="mt-4 rounded-[14px] px-4 py-3 flex items-start gap-3 text-[13px]"
+            role="status"
+            aria-live="polite"
+            [style.background]="
+              simulationState().status === 'success' ? 'var(--orion-success-tint)' :
+              simulationState().status === 'revert'  ? 'var(--orion-danger-tint)' :
+              simulationState().status === 'error'   ? 'var(--orion-warning-tint)' :
+              'var(--orion-surface-2)'"
+            [style.color]="
+              simulationState().status === 'success' ? 'var(--orion-success)' :
+              simulationState().status === 'revert'  ? 'var(--orion-danger)' :
+              simulationState().status === 'error'   ? 'var(--orion-warning)' :
+              'var(--orion-muted)'"
+          >
+            <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">
+              @switch (simulationState().status) {
+                @case ('pending') { hourglass_top }
+                @case ('success') { task_alt }
+                @case ('revert')  { block }
+                @case ('error')   { warning }
+                @default          { science }
+              }
+            </span>
+            <div class="flex-1">
+              @switch (simulationState().status) {
+                @case ('pending') {
+                  <strong class="font-semibold">Simulating swap…</strong>
+                  <p class="opacity-90 mt-0.5">Checking the route on-chain before you sign.</p>
+                }
+                @case ('success') {
+                  <strong class="font-semibold">Simulation passed</strong>
+                  <p class="opacity-90 mt-0.5">The swap should succeed at the current price.</p>
+                  <!-- Honesty note: eth_call checks THIS transaction only. A
+                       honeypot's buy leg simulates fine — passing says
+                       nothing about being able to sell the token later. -->
+                  <p class="opacity-75 mt-1 text-[12px]">
+                    Simulation checks this transaction only — it doesn't verify that the token can be sold again later.
+                  </p>
+                }
+                @case ('revert') {
+                  <strong class="font-semibold">Simulation reverted</strong>
+                  <p class="opacity-90 mt-0.5">{{ simulationState().reason }}</p>
+                  @if (simulationState().kind !== 'allowance') {
+                    <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        [checked]="acknowledgedSimulationFailure()"
+                        (change)="acknowledgedSimulationFailure.set(!acknowledgedSimulationFailure())"
+                        class="w-4 h-4"
+                      />
+                      <span class="font-medium">Proceed anyway. I understand it will likely revert.</span>
+                    </label>
+                  } @else {
+                    <p class="opacity-75 mt-1 text-[12px]">
+                      Tip: wait a few seconds for the approval to land, then
+                      <button type="button" class="underline underline-offset-2 font-medium" (click)="refreshReviewQuote()">re-check</button>.
+                    </p>
+                  }
+                }
+                @case ('error') {
+                  <strong class="font-semibold">Couldn't pre-check</strong>
+                  @if (simulationState().kind === 'inconclusive') {
+                    <!-- eth_call returned no verdict either way ("missing
+                         revert data" routers) — honest "unknown", not a
+                         green pass and not a scary revert. -->
+                    <p class="opacity-90 mt-0.5">The route couldn't be fully simulated — no verdict either way. The swap may still work; proceed at your discretion.</p>
+                  } @else {
+                    <p class="opacity-90 mt-0.5">The network didn't answer in time. The swap may still work; proceed at your discretion.</p>
+                  }
+                }
+                @default { }
+              }
+            </div>
+          </div>
+
+          <!-- High-slippage honesty line. Reads the FROZEN quote().slippage
+               (the value encoded into this quote's calldata), not the live
+               settings — the frozen-quote pattern, same as minimumReceived. -->
+          @if (quote()!.slippage > 5) {
+            <div
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">warning</span>
+              <span class="text-[13px]">
+                <strong>High slippage:</strong> bots can take up to {{ quote()!.slippage }}% of this trade.
+                Lower the slippage in settings unless you know this pair needs it.
+              </span>
+            </div>
+          }
+
+          <!-- Native-gas preflight: the wallet can't cover the network fee,
+               so the signature is guaranteed to fail. Confirm is blocked
+               (canConfirmSwap) with the reason shown here — the wallet's own
+               error at signing comes with advice that can't help. -->
+          @if (nativeGasShortfall(); as shortfall) {
+            <div
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">local_gas_station</span>
+              <span class="text-[13px]">
+                <strong>Not enough {{ shortfall.nativeSymbol }} for network fees</strong> —
+                this swap needs about {{ shortfall.requiredDisplay }} {{ shortfall.nativeSymbol }} for gas.
+                Top up your {{ shortfall.nativeSymbol }} balance to swap.
+              </span>
+            </div>
+          }
+
+          <!-- High-value confirmation gate. Above $1,000 USD we ask the user
+               to explicitly acknowledge the size of the trade before the
+               Confirm CTA enables — a cheap fat-finger guard. -->
+          @if (isHighValueSwap()) {
+            <label
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px] cursor-pointer"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+            >
+              <input
+                type="checkbox"
+                class="mt-1 w-4 h-4"
+                [checked]="acknowledgedHighValue()"
+                (change)="acknowledgedHighValue.set(!acknowledgedHighValue())"
+              />
+              <span class="text-[13px]">
+                <strong>Large swap (≈ {{ formatUsd(quote()!.fromAmountUSD) }})</strong>: I've double-checked
+                the amount and the destination token.
+              </span>
+            </label>
+          }
+
+          <!-- Tiered quote-risk gate. Extreme price impact hard-blocks
+               Confirm (no checkbox can bypass it); high/unknown impact and
+               an unverifiable USD value require one explicit ack. -->
+          @if (quoteRisk().hardBlock) {
+            <div
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px]"
+              style="background: var(--orion-danger-tint); color: var(--orion-danger);"
+              role="alert"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">block</span>
+              <span class="text-[13px]">
+                <strong>Price impact is {{ quoteRiskImpact()!.toFixed(1) }}%</strong> — this trade
+                would lose most of its value. Reduce the amount.
+              </span>
+            </div>
+          } @else if (quoteRisk().needsAck) {
+            <label
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px] cursor-pointer"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+            >
+              <input
+                type="checkbox"
+                class="mt-1 w-4 h-4"
+                [checked]="acknowledgedQuoteRisk()"
+                (change)="acknowledgedQuoteRisk.set(!acknowledgedQuoteRisk())"
+              />
+              <span class="text-[13px]">{{ quoteRiskAckLabel() }}</span>
+            </label>
+          }
+
+          <!-- Destination-token risk gate on review (mirror of the swap-step
+               gate): a GoPlus verdict that lands while the user is on review
+               must still block Confirm. high / critical / unknown require one
+               explicit ack; honeypots & co. are hard-blocked elsewhere and
+               never reach here. -->
+          @if (toToken() && requiresTokenRiskAck()) {
+            <label
+              class="flex items-start gap-3 mt-4 px-4 py-3 rounded-[14px] cursor-pointer"
+              [style.background]="isCriticalRiskToken() ? 'var(--orion-danger-tint)' : 'var(--orion-warning-tint)'"
+              [style.color]="isCriticalRiskToken() ? 'var(--orion-danger)' : 'var(--orion-warning)'"
+            >
+              <input
+                type="checkbox"
+                class="mt-1 w-4 h-4"
+                [checked]="acknowledgedHighRisk()"
+                (change)="acknowledgedHighRisk.set(!acknowledgedHighRisk())"
+              />
+              <span class="text-[13px]">
+                <strong>
+                  @if (isCriticalRiskToken()) {
+                    Critical risk: {{ toToken()?.symbol }}
+                  } @else if (isHighRiskToken()) {
+                    High-risk token: {{ toToken()?.symbol }}
+                  } @else {
+                    {{ toToken()?.symbol }} couldn't be verified
+                  }
+                </strong>
+                @if (isUnverifiedToken()) {
+                  — the security check didn't return a verdict. Continue only if you trust this token.
+                } @else {
+                  — continue only if you know exactly what this token does.
+                }
+              </span>
+            </label>
+          }
+
+          <!-- Buttons -->
+          <div class="flex gap-2.5 mt-4">
+            <button
+              type="button"
+              (click)="cancelReview()"
+              class="orion-btn-ghost flex-1"
+              style="padding: 16px 20px;"
+            >
+              Cancel
+            </button>
+            @if (reviewQuoteExpired() && !isExecutingPreflight() && transactionStatus() === 'idle') {
+              <!-- Expired quote: Confirm would be rejected by the execution
+                   service anyway — offer the fix instead of a dead button. -->
+              <button
+                type="button"
+                (click)="refreshReviewQuote()"
+                class="orion-btn-primary"
+                style="flex: 2; padding: 16px 20px; font-size: 15px;"
+                [disabled]="isLoading()"
+              >
+                @if (isLoading()) {
+                  <span class="material-symbols-outlined text-[18px] orion-spin" aria-hidden="true">refresh</span>
+                  Updating quote…
+                } @else {
+                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>
+                  Refresh quote
+                }
+              </button>
+            } @else {
+              <button
+                type="button"
+                (click)="handleReviewConfirm()"
+                class="orion-btn-primary"
+                style="flex: 2; padding: 16px 20px; font-size: 15px;"
+                [disabled]="!canConfirmSwap()"
+              >
+                @if (isExecutingPreflight()) {
+                  <span class="material-symbols-outlined text-[18px] orion-spin" aria-hidden="true">refresh</span>
+                  Validating route…
+                } @else if (simulationState().status === 'pending') {
+                  <span class="material-symbols-outlined text-[18px] orion-spin" aria-hidden="true">refresh</span>
+                  Simulating…
+                } @else {
+                  Confirm swap
+                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+                }
+              </button>
+            }
+          </div>
+          <div class="text-[12px] text-[var(--orion-subtle)] text-center mt-3">
+            <!-- target=_blank: opening the legal page in this tab would throw
+                 away the review step (and its live quote) the user is on. -->
+            By confirming, you agree to Orion's
+            <a
+              href="/legal"
+              target="_blank"
+              rel="noopener"
+              class="text-[var(--orion-muted)] underline underline-offset-2 hover:text-[var(--orion-text)]"
+            >Beta Terms</a>.
+          </div>
+        }
+
+        <!-- ====== Step: Status ====== -->
+        @if (currentStep() === 'status') {
+          <!-- On the completed/failed layouts the card carries its own
+               heading ("All done." / "Your swap didn't go through") —
+               keeping this h1 visible too inverts the visual hierarchy with
+               two competing titles. -->
+          <!-- aria-live: signing → pending → completed/failed transitions were
+               otherwise silent for screen-reader users waiting on a signed tx. -->
+          <h1
+            #stepHeading
+            tabindex="-1"
+            class="text-[22px] font-semibold text-white tracking-[-0.01em] leading-[30px] mb-5"
+            [class.sr-only]="transactionStatus() === 'completed' || transactionStatus() === 'failed'"
+            aria-live="polite"
+          >
+            @switch (transactionStatus()) {
+              @case ('signing') { Sign your swap }
+              @case ('pending') { Sending your swap }
+              @case ('confirming') { Sending your swap }
+              @case ('completed') { Swap complete }
+              @case ('failed') { Swap failed }
+              @default { Processing your swap }
+            }
+          </h1>
+
+          @if (transactionStatus() === 'completed') {
+            <!-- Done layout: hero + receipt (stacks <1024px) -->
+            <div class="orion-done-grid">
+              <!-- Hero -->
+              <div class="orion-card orion-card-pad-lg flex flex-col justify-center gap-5">
+                <app-status-icon class="orion-scale-in" [size]="72" [iconSize]="42" icon="check" tint="success"></app-status-icon>
+
+                <div>
+                  <h2 class="text-[32px] font-bold text-white" style="letter-spacing: -0.02em; margin: 0 0 8px;">All done.</h2>
+                  @if (quote(); as q) {
+                    <!-- "~": the displayed amount is the QUOTE's estimate —
+                         no tracked path reports the actually delivered
+                         amount, so presenting it as received would overstate
+                         what we know. -->
+                    <p class="text-[15px] text-[var(--orion-muted)] leading-relaxed m-0">
+                      You swapped
+                      <span class="orion-tabular text-[var(--orion-text)] font-medium">{{ formatTokenAmount(q.fromAmount) }} {{ q.fromToken.symbol }}</span>
+                      for
+                      <span class="orion-tabular text-[var(--orion-text)] font-medium">~{{ formatTokenAmount(q.toAmount) }} {{ q.toToken.symbol }}</span>.
+                    </p>
+                    <p class="text-[12px] text-[var(--orion-subtle)] leading-relaxed m-0 mt-2">
+                      Estimated — check your wallet for the exact amount received.
+                    </p>
+                  }
+                </div>
+
+                <div class="flex flex-wrap gap-2.5 mt-2">
+                  <button type="button" class="orion-btn-primary flex-1" style="padding: 14px 20px;" (click)="resetSwap()">
+                    Swap again
+                  </button>
+                  @if (explorerUrl()) {
+                    <a [href]="explorerUrl()" target="_blank" rel="noopener"
+                       class="orion-btn-ghost flex-1" style="padding: 14px 20px; text-decoration: none;">
+                      View on explorer
+                      <span class="material-symbols-outlined text-[14px] text-[var(--orion-muted)]" aria-hidden="true">open_in_new</span>
+                    </a>
+                  }
+                </div>
+              </div>
+
+              <!-- Receipt -->
+              <div class="orion-card orion-card-pad">
+                <div class="flex items-center justify-between pb-4 border-b border-[var(--orion-border)]">
+                  <div class="flex items-center gap-2.5">
+                    <h2 class="text-[17px] font-semibold text-[var(--orion-text)] m-0">Receipt</h2>
+                  </div>
+                </div>
+
+                @if (quote(); as q) {
+                  <div class="divide-y divide-[var(--orion-border)]">
+                    <div class="flex justify-between items-start py-3.5 gap-4">
+                      <span class="text-[13px] text-[var(--orion-muted)]">Paid</span>
+                      <div class="text-right">
+                        <div class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ formatTokenAmount(q.fromAmount) }} {{ q.fromToken.symbol }}</div>
+                        <div class="text-[12px] text-[var(--orion-subtle)] orion-tabular">{{ formatUsd(q.fromAmountUSD) }}</div>
+                      </div>
+                    </div>
+
+                    <div class="flex justify-between items-start py-3.5 gap-4">
+                      <span class="text-[13px] text-[var(--orion-muted)]">Received</span>
+                      <div class="text-right">
+                        <!-- "~" mirrors the hero copy: quoted estimate, not a
+                             parsed on-chain delivery amount. -->
+                        <div class="text-[14px] font-medium orion-tabular" style="color: var(--orion-success);">~{{ formatTokenAmount(q.toAmount) }} {{ q.toToken.symbol }}</div>
+                        <div class="text-[12px] text-[var(--orion-subtle)] orion-tabular">{{ formatUsd(q.toAmountUSD) }}</div>
+                      </div>
+                    </div>
+
+                    <div class="flex justify-between items-start py-3.5 gap-4">
+                      <span class="text-[13px] text-[var(--orion-muted)]">Rate</span>
+                      <div class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ q.exchangeRate }}</div>
+                    </div>
+
+                    <div class="flex justify-between items-start py-3.5 gap-4">
+                      <span class="text-[13px] text-[var(--orion-muted)]">Network fee</span>
+                      <div class="text-right">
+                        <!-- "~" matches the Received row: this is the quoted
+                             estimate, not a parsed on-chain receipt figure. -->
+                        <div class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">{{ gasCostDisplay(q.gasCostUSD) }}</div>
+                        <div class="text-[12px] text-[var(--orion-subtle)]">
+                          {{ isGasEstimateKnown(q.gasCostUSD) ? 'paid in ' + nativeSymbolFor(q.fromToken.chainId) : 'estimate unavailable' }}
+                        </div>
+                      </div>
+                    </div>
+
+                    @if (txCompletedInSeconds() !== null) {
+                      <div class="flex justify-between items-start py-3.5 gap-4">
+                        <span class="text-[13px] text-[var(--orion-muted)]">Completed</span>
+                        <div class="text-[14px] font-medium text-[var(--orion-text)] orion-tabular">
+                          {{ formatElapsed(txCompletedInSeconds()!) }} after signing
+                        </div>
+                      </div>
+                    }
+
+                    @if (txHash()) {
+                      <div class="flex justify-between items-start py-3.5 gap-4">
+                        <span class="text-[13px] text-[var(--orion-muted)]">Transaction</span>
+                        <a [href]="explorerUrl()" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1.5 text-[var(--orion-text)] hover:text-[var(--orion-accent-text)] transition-colors"
+                           style="text-decoration: none;">
+                          <span class="text-[13px] orion-mono">{{ txHash().slice(0, 6) }}…{{ txHash().slice(-4) }}</span>
+                          <span class="material-symbols-outlined text-[13px] text-[var(--orion-muted)]" aria-hidden="true">open_in_new</span>
+                        </a>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          } @else if (transactionStatus() === 'failed') {
+            <div class="orion-card p-8 flex flex-col items-center text-center gap-5">
+              <app-status-icon [size]="64" icon="close" tint="danger"></app-status-icon>
+              <div>
+                <h2 class="text-[22px] font-semibold text-[var(--orion-text)] mb-2">Your swap didn't go through</h2>
+                <p class="text-[14px] text-[var(--orion-muted)] max-w-[460px]">{{ txError() || 'The transaction failed on the network. Please try again.' }}</p>
+              </div>
+
+              <div class="flex gap-2.5 w-full max-w-[420px]">
+                <button type="button" class="orion-btn-ghost flex-1" (click)="resetSwap()">
+                  Close
+                </button>
+                <button type="button" class="orion-btn-primary flex-1" (click)="tryAgain()">
+                  Try again
+                </button>
+              </div>
+            </div>
+          } @else {
+            <!-- Pending / Signing / Confirming layout (stacks <1024px) -->
+            <div class="orion-status-grid">
+              <!-- Left: summary -->
+              <div class="orion-card orion-card-pad flex flex-col gap-5">
+                <div class="flex items-center justify-between">
+                  <h2 class="text-[16px] font-semibold text-[var(--orion-text)] m-0">Your transaction</h2>
+                  <!-- accent-text, not accent: accent-colored TEXT on the
+                       tint background needs the AA-contrast pair. -->
+                  <span class="orion-chip"
+                        style="background: var(--orion-accent-tint); color: var(--orion-accent-text); border-color: transparent; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px;">
+                    {{ transactionStatus() === 'signing' ? 'Signing' : 'In progress' }}
+                  </span>
+                </div>
+
+                @if (quote(); as q) {
+                  <!-- Horizontal summary (stacks on phones) -->
+                  <div class="orion-tx-summary-grid rounded-[16px] border border-[var(--orion-border)] bg-[var(--orion-surface-2)] px-5 py-4">
+                    <div class="flex items-center gap-3">
+                      <img [src]="q.fromToken.logoURI" [alt]="q.fromToken.symbol"
+                           class="w-9 h-9 rounded-full bg-[var(--orion-surface-3)]"
+                           (error)="onImageError($event)">
+                      <div>
+                        <div class="text-[19px] font-semibold text-[var(--orion-text)] orion-tabular" style="letter-spacing: -0.01em;">
+                          {{ formatTokenAmount(q.fromAmount) }} {{ q.fromToken.symbol }}
+                        </div>
+                        <div class="text-[12px] text-[var(--orion-muted)] orion-tabular">{{ formatUsd(q.fromAmountUSD) }}</div>
+                      </div>
+                    </div>
+                    <div class="orion-flow-arrow w-9 h-9 rounded-full bg-[var(--orion-surface-3)] border border-[var(--orion-border-strong)] flex items-center justify-center text-[var(--orion-muted)]">
+                      <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <img [src]="q.toToken.logoURI" [alt]="q.toToken.symbol"
+                           class="w-9 h-9 rounded-full bg-[var(--orion-surface-3)]"
+                           (error)="onImageError($event)">
+                      <div>
+                        <div class="text-[19px] font-semibold text-[var(--orion-text)] orion-tabular" style="letter-spacing: -0.01em;">
+                          {{ formatTokenAmount(q.toAmount) }} {{ q.toToken.symbol }}
+                        </div>
+                        <div class="text-[12px] text-[var(--orion-muted)] orion-tabular">{{ formatUsd(q.toAmountUSD) }}</div>
+                      </div>
+                    </div>
+                  </div>
+                }
+
+                <!-- Status panel -->
+                <div class="rounded-[16px] border border-[var(--orion-border)] bg-[var(--orion-surface-2)] overflow-hidden">
+                  <div class="orion-status-cells">
+                    <div style="padding: 14px 18px;">
+                      <div class="orion-label mb-1.5">Status</div>
+                      <div class="flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full orion-pulse-dot" style="background: var(--orion-accent);"></span>
+                        <span class="text-[13.5px] font-medium text-[var(--orion-text)]">
+                          {{ transactionStatus() === 'signing' ? 'Awaiting signature' : 'In progress' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="border-l border-[var(--orion-border)]" style="padding: 14px 18px;">
+                      <div class="orion-label mb-1.5">Elapsed</div>
+                      <div class="text-[13.5px] font-medium text-[var(--orion-text)] orion-tabular">
+                        @if (transactionStatus() === 'signing') {
+                          —
+                        } @else {
+                          {{ formatElapsed(txElapsedSeconds()) }}
+                        }
+                      </div>
+                    </div>
+                    <div class="border-l border-[var(--orion-border)]" style="padding: 14px 18px;">
+                      <div class="orion-label mb-1.5">Transaction</div>
+                      @if (txHash()) {
+                        <a [href]="explorerUrl()" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1.5 text-[var(--orion-text)] hover:text-[var(--orion-accent-text)] transition-colors"
+                           style="text-decoration: none;">
+                          <span class="text-[13px] orion-mono">{{ txHash().slice(0, 6) }}…{{ txHash().slice(-4) }}</span>
+                          <span class="material-symbols-outlined text-[13px] text-[var(--orion-muted)]" aria-hidden="true">open_in_new</span>
+                        </a>
+                      } @else {
+                        <span class="text-[13px] text-[var(--orion-subtle)]">—</span>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Exit for the long bridge wait: cross-chain delivery can
+                     take 5-30 minutes (untracked routes never resolve
+                     in-session) — don't hold the user hostage on this screen. -->
+                @if (canStartNewSwapWhileBridging()) {
+                  <div class="flex flex-col gap-2">
+                    <button type="button" class="orion-btn-ghost" [disabled]="!txHash()" (click)="resetSwap()">
+                      Start new swap
+                    </button>
+                    <p class="text-[12px] text-[var(--orion-muted)] text-center leading-relaxed m-0">
+                      Your transfer continues in the background.
+                    </p>
+                  </div>
+                }
+              </div>
+
+              <!-- Right: what's happening (driven by trackingState.steps) -->
+              <div class="orion-card orion-card-pad flex flex-col gap-5">
+                <div class="flex items-center justify-between">
+                  <h2 class="text-[16px] font-semibold text-[var(--orion-text)] m-0">What's happening</h2>
+                  <!-- Cross-chain never gets a precise "~Xm remaining": bridge
+                       delivery genuinely varies (the tracked fast path can be
+                       seconds, untracked routes up to 30 min) and an expired
+                       countdown reads as a hang. Show the honest range. -->
+                  @if (isCrossChain() && transactionStatus() !== 'signing') {
+                    <span class="text-[11.5px] font-medium text-[var(--orion-muted)]">
+                      usually 5–30 min
+                    </span>
+                  } @else if (trackingState()?.estimatedTimeRemaining && trackingState()!.estimatedTimeRemaining! > 0 && transactionStatus() !== 'signing') {
+                    <span class="text-[11.5px] font-medium text-[var(--orion-muted)] orion-tabular">
+                      ~{{ formatElapsed(trackingState()!.estimatedTimeRemaining!) }} remaining
+                    </span>
+                  }
+                </div>
+
+                <div class="flex flex-col gap-1">
+                  @for (step of timelineSteps(); track step.id; let last = $last) {
+                    <div class="grid items-start gap-3" style="grid-template-columns: 28px 1fr;">
+                      <div class="flex flex-col items-center">
+                        <div
+                          class="w-[22px] h-[22px] rounded-full flex items-center justify-center"
+                          [style.background]="stepBackground(step.status)"
+                          [style.border]="step.status === 'in_progress' ? '1.5px solid var(--orion-accent)' : 'none'"
+                        >
+                          <!-- Ligature icons are aria-hidden (SR would read
+                               "check"/"close" as text); the sr-only twin
+                               carries the actual step outcome, which is
+                               otherwise conveyed by icon+color only. -->
+                          @if (step.status === 'completed') {
+                            <span class="material-symbols-outlined text-white" style="font-size: 13px; font-weight: 700;" aria-hidden="true">check</span>
+                            <span class="sr-only">Completed</span>
+                          } @else if (step.status === 'failed') {
+                            <span class="material-symbols-outlined text-white" style="font-size: 13px; font-weight: 700;" aria-hidden="true">close</span>
+                            <span class="sr-only">Failed</span>
+                          } @else if (step.status === 'in_progress') {
+                            <span class="inline-block w-2 h-2 rounded-full orion-pulse-dot" style="background: var(--orion-accent);"></span>
+                          }
+                        </div>
+                        @if (!last) {
+                          <div
+                            class="w-px flex-1 min-h-[20px] mt-1"
+                            [style.background]="step.status === 'completed' ? 'var(--orion-success)' : 'var(--orion-border-strong)'"
+                          ></div>
+                        }
+                      </div>
+                      <div [class.pb-5]="!last">
+                        <div class="flex items-baseline gap-2 flex-wrap">
+                          <span class="text-[14px] font-medium" [style.color]="stepTitleColor(step.status)">
+                            {{ step.title }}
+                          </span>
+                          @if (step.status === 'in_progress' && txElapsedSeconds() > 0) {
+                            <span class="text-[12px] orion-tabular" style="color: var(--orion-accent-text);">
+                              {{ formatElapsed(txElapsedSeconds()) }}
+                            </span>
+                          }
+                          @if (step.explorerLink) {
+                            <a
+                              [href]="step.explorerLink"
+                              target="_blank"
+                              rel="noopener"
+                              class="inline-flex items-center gap-0.5 text-[12px] text-[var(--orion-muted)] hover:text-[var(--orion-accent-text)] transition-colors"
+                              style="text-decoration: none;"
+                            >
+                              View
+                              <span class="material-symbols-outlined text-[12px]" aria-hidden="true">open_in_new</span>
+                            </a>
+                          }
+                        </div>
+                        @if (step.description) {
+                          <div class="text-[12.5px] mt-1 leading-relaxed" [style.color]="stepDescriptionColor(step.status)">
+                            {{ step.description }}
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- Honest timeout banner: both tracking loops (LI.FI and
+                     aggregator) write their give-up copy into
+                     trackingState.error when they run out of attempts.
+                     role=status, not alert — nothing failed, the transfer is
+                     still in progress; we just stopped watching. -->
+                @if (trackingState()?.error; as trackingError) {
+                  <div
+                    class="flex items-start gap-3 rounded-[14px] px-4 py-3"
+                    style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+                    role="status"
+                  >
+                    <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">warning</span>
+                    <span class="text-[13px] leading-relaxed">{{ trackingError }}</span>
+                  </div>
+                }
+
+                <!-- External end-to-end tracker (dispatcher tracking_url, or
+                     the Axelarscan fallback for Squid routes our tracker
+                     can't follow). Label derives from the URL host. -->
+                @if (untrackedBridgeTrackingUrl(); as trackingUrl) {
+                  <a [href]="trackingUrl" target="_blank" rel="noopener"
+                     class="orion-btn-ghost self-start" style="text-decoration: none;">
+                    {{ trackingLinkLabel(trackingUrl) }}
+                    <span class="material-symbols-outlined text-[14px] text-[var(--orion-muted)]" aria-hidden="true">open_in_new</span>
+                  </a>
+                }
+
+                <div class="mt-auto rounded-[14px] bg-[var(--orion-surface-2)] border border-[var(--orion-border)] px-3.5 py-3 flex items-start gap-2.5">
+                  <span class="material-symbols-outlined text-[16px] text-[var(--orion-muted)] mt-0.5 flex-none" aria-hidden="true">shield</span>
+                  <div class="text-[13px] text-[var(--orion-muted)] leading-relaxed">
+                    Safe to wait here: closing this page <span class="text-[var(--orion-text)]">won't cancel</span> your swap.
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+    }
+  </div>
+
+  <!-- Token Selector Modal -->
+  @if (showTokenSelector()) {
+    <app-token-selector
+      [chainId]="walletService.chainId() || 1"
+      [selectedToken]="selectingFor() === 'from' ? fromToken() : toToken()"
+      [sourceChainId]="fromToken()?.chainId || 1"
+      [selectingFor]="selectingFor()"
+      (tokenSelected)="onTokenSelected($event)"
+      (close)="showTokenSelector.set(false)"
+    />
+  }
+
+  <!-- Cross-Chain Confirmation Modal -->
+  @if (showCrossChainConfirm()) {
+    <div class="orion-backdrop" (click)="showCrossChainConfirm.set(false)"></div>
+    <div class="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 pointer-events-none">
+      <!-- max-height + scroll: on landscape phones (~360px tall) the modal is
+           taller than the viewport and the centered fixed container clipped
+           Cancel/Confirm out of reach. dvh tracks the VISIBLE viewport on
+           mobile; the plain vh redeclaration is the fallback for older
+           browsers (same idiom as the token-selector shell). -->
+      <div
+        class="orion-modal orion-scale-in w-full max-w-[440px] pointer-events-auto overflow-y-auto"
+        style="max-height: 85vh; max-height: 85dvh;"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cross-chain-confirm-title"
+        orionFocusTrap
+      >
+        <header class="flex items-center gap-3 px-5 py-4 border-b border-[var(--orion-border)]">
+          <span class="material-symbols-outlined text-[20px]" style="color: var(--orion-warning);" aria-hidden="true">sync_alt</span>
+          <h2 id="cross-chain-confirm-title" class="text-[15px] font-semibold text-[var(--orion-text)] flex-1">Cross-chain swap</h2>
+          <button
+            type="button"
+            class="orion-btn-icon"
+            aria-label="Close cross-chain confirmation"
+            (click)="showCrossChainConfirm.set(false)"
+          >
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+          </button>
+        </header>
+
+        <div class="p-5 space-y-4">
+          <div class="rounded-[14px] p-4" style="background: var(--orion-warning-tint);">
+            <p class="text-[13px] text-[var(--orion-text)] leading-relaxed mb-3">
+              You're about to swap tokens between <strong style="color: var(--orion-warning);">different networks</strong>:
+            </p>
+            <div class="flex items-center justify-center gap-3 py-2">
+              <div class="flex items-center gap-2 bg-[var(--orion-surface-2)] border border-[var(--orion-border)] rounded-[10px] px-3 py-2">
+                <img [src]="getNetworkLogo(fromToken()!.chainId)" alt="" class="w-5 h-5 rounded-full" (error)="onImageError($event)">
+                <span class="text-[var(--orion-text)] text-[13px] font-medium">{{ getNetworkName(fromToken()!.chainId) }}</span>
+              </div>
+              <span class="material-symbols-outlined text-[18px]" style="color: var(--orion-warning);" aria-hidden="true">arrow_forward</span>
+              <div class="flex items-center gap-2 bg-[var(--orion-surface-2)] border border-[var(--orion-border)] rounded-[10px] px-3 py-2">
+                <img [src]="getNetworkLogo(toToken()!.chainId)" alt="" class="w-5 h-5 rounded-full" (error)="onImageError($event)">
+                <span class="text-[var(--orion-text)] text-[13px] font-medium">{{ getNetworkName(toToken()!.chainId) }}</span>
+              </div>
+            </div>
+            <p class="text-[11.5px] mt-3 leading-relaxed" style="color: var(--orion-warning);">
+              This process uses bridge technology and takes <strong>5–30 minutes</strong> to complete.
+            </p>
+          </div>
+
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              [checked]="crossChainConfirmed()"
+              (change)="crossChainConfirmed.set(!crossChainConfirmed())"
+              class="mt-0.5 w-4 h-4 rounded border-[var(--orion-border-strong)] bg-[var(--orion-surface-2)] cursor-pointer"
+            >
+            <!-- The ack names the consequence, not just the category — a user
+                 who ticks it has read the waiting time they're signing up for. -->
+            <span class="text-[12.5px] text-[var(--orion-muted)] group-hover:text-[var(--orion-text)] transition-colors leading-snug">
+              I understand this is a cross-chain swap and my tokens may take 5–30 minutes to arrive
+            </span>
+          </label>
+
+          <div class="flex gap-2.5 pt-1">
+            <button
+              type="button"
+              class="orion-btn-ghost flex-1"
+              (click)="showCrossChainConfirm.set(false)"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="orion-btn-primary flex-1"
+              [disabled]="!crossChainConfirmed()"
+              [style.background]="crossChainConfirmed() ? 'var(--orion-warning)' : undefined"
+              (click)="confirmCrossChainSwap()"
+            >
+              Confirm swap
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

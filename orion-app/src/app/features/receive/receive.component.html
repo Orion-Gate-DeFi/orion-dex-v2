@@ -1,0 +1,341 @@
+<div class="flex-1 flex items-start justify-center p-3 lg:p-4 relative min-h-0 orion-screen-enter">
+  <div class="w-full max-w-[700px] pt-6">
+    <div class="flex items-center gap-3 mb-6">
+      <h1 class="text-[22px] font-semibold text-[var(--orion-text)] tracking-[-0.01em] m-0">Receive</h1>
+    </div>
+
+    <div class="orion-card w-full">
+      <div class="p-4 sm:p-6 lg:p-8">
+        @if (!walletService.isConnected()) {
+          <!-- Not Connected State -->
+          <div class="text-center py-12">
+            <app-status-icon class="mx-auto mb-6" icon="account_balance_wallet" tint="accent"></app-status-icon>
+            <h2 class="text-[22px] font-semibold text-[var(--orion-text)] mb-2">Connect your wallet</h2>
+            <p class="text-[14px] text-[var(--orion-muted)] mb-6">Connect your wallet to see your address.</p>
+            <button
+              type="button"
+              class="orion-btn-primary w-full"
+              (click)="walletService.connect()"
+            >
+              Connect wallet
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">account_balance_wallet</span>
+            </button>
+          </div>
+        } @else {
+          <!-- Tab Selector -->
+          <div class="flex gap-2.5 mb-6">
+            <button
+              type="button"
+              class="flex-1 py-3 px-4 rounded-[14px] font-medium text-[14px] border transition-colors"
+              [ngClass]="activeTab() === 'address'
+                ? 'bg-[var(--orion-accent-tint)] border-[var(--orion-accent)] text-[var(--orion-text)]'
+                : 'bg-[var(--orion-surface-2)] border-[var(--orion-border)] text-[var(--orion-muted)] hover:border-[var(--orion-border-strong)]'"
+              [attr.aria-pressed]="activeTab() === 'address'"
+              (click)="activeTab.set('address')"
+            >
+              My address
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-3 px-4 rounded-[14px] font-medium text-[14px] border transition-colors"
+              [ngClass]="activeTab() === 'payment-link'
+                ? 'bg-[var(--orion-accent-tint)] border-[var(--orion-accent)] text-[var(--orion-text)]'
+                : 'bg-[var(--orion-surface-2)] border-[var(--orion-border)] text-[var(--orion-muted)] hover:border-[var(--orion-border-strong)]'"
+              [attr.aria-pressed]="activeTab() === 'payment-link'"
+              (click)="activeTab.set('payment-link')"
+            >
+              Payment link
+            </button>
+          </div>
+
+          @if (activeTab() === 'address') {
+            <!-- QR Code Section -->
+            <div class="flex flex-col items-center mb-6">
+              <!-- QR stays on white: scanners need the contrast. On render
+                   error the canvas is hidden (not removed) so a later address
+                   change can retry into it. -->
+              <div class="bg-white p-4 rounded-[16px] mb-4" [class.hidden]="qrError()">
+                <div class="w-48 h-48 flex items-center justify-center bg-white">
+                  <canvas
+                    #qrCanvas
+                    role="img"
+                    aria-label="QR code of your wallet address"
+                    class="w-full h-full"
+                  ></canvas>
+                </div>
+              </div>
+              @if (qrError()) {
+                <div
+                  class="w-56 px-4 py-6 rounded-[16px] mb-4 flex flex-col items-center gap-2 text-center"
+                  style="background: var(--orion-surface-2); border: 1px dashed var(--orion-border);"
+                  role="status"
+                >
+                  <span class="material-symbols-outlined text-[28px] text-[var(--orion-muted)]" aria-hidden="true">qr_code_2</span>
+                  <p class="text-[12px] text-[var(--orion-muted)] m-0">
+                    QR code could not be generated. Copy your address below instead.
+                  </p>
+                </div>
+              } @else {
+                <p class="text-[12px] text-[var(--orion-muted)]">Scan this code to get the wallet address</p>
+              }
+            </div>
+
+            <!-- Wallet Address -->
+            <div class="mb-2">
+              <span class="orion-label block mb-2">Your wallet address</span>
+            </div>
+            <div class="orion-panel w-full px-4 py-3 mb-4">
+              <div class="flex items-center gap-3">
+                <p class="orion-mono text-sm break-all flex-1 text-[var(--orion-text)] m-0">
+                  {{ walletService.address() }}
+                </p>
+                <button
+                  type="button"
+                  class="orion-btn-ghost flex-shrink-0"
+                  style="padding: 10px 12px;"
+                  aria-label="Copy wallet address"
+                  (click)="copyAddress()"
+                >
+                  <span
+                    class="material-symbols-outlined text-[18px]"
+                    [style.color]="copied() ? 'var(--orion-success)' : 'var(--orion-accent-text)'"
+                    aria-hidden="true"
+                  >{{ copied() ? 'check' : 'content_copy' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Network Info -->
+            <div
+              class="flex items-start gap-3 px-4 py-3 rounded-[14px] text-[13px]"
+              style="background: var(--orion-warning-tint); color: var(--orion-warning);"
+            >
+              <span class="material-symbols-outlined text-[18px] mt-0.5" aria-hidden="true">info</span>
+              <div>
+                <p class="font-semibold m-0">Same address, multiple networks</p>
+                <p class="text-[12px] mt-1 leading-relaxed opacity-90 m-0">
+                  This address works on Ethereum, Arbitrum, Base, Polygon, Optimism, BNB Chain, and Avalanche. Make sure the sender uses the correct network.
+                </p>
+              </div>
+            </div>
+          }
+
+          @if (activeTab() === 'payment-link') {
+            <!-- Payment Link Generator -->
+            <div class="space-y-5">
+              <!-- Network Selector -->
+              <div>
+                <span class="orion-label block mb-2">Network</span>
+                <div class="flex flex-wrap gap-2">
+                  @for (network of networks; track network.id) {
+                    <button
+                      type="button"
+                      class="orion-net-pill"
+                      [class.active]="selectedNetwork()?.id === network.id"
+                      [attr.aria-pressed]="selectedNetwork()?.id === network.id"
+                      [attr.aria-label]="'Select ' + network.name + ' network'"
+                      (click)="selectNetwork(network)"
+                    >
+                      <img [src]="network.logoURI" [alt]="">
+                      <span class="font-semibold">{{ network.name }}</span>
+                      <!-- Non-colour active marker so the selected network isn't
+                           conveyed solely by the accent background. -->
+                      @if (selectedNetwork()?.id === network.id) {
+                        <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check</span>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <!-- Token Selector with Search (Required) -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="orion-label">Token</span>
+                  @if (!selectedToken()) {
+                    <span class="text-xs flex items-center gap-1" style="color: var(--orion-danger);">
+                      <span class="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
+                      Required
+                    </span>
+                  }
+                </div>
+
+                <div class="relative">
+                  @if (isLoadingTokens()) {
+                    <div class="flex items-center justify-center py-4">
+                      <span class="material-symbols-outlined orion-spin" style="color: var(--orion-accent-text);" aria-hidden="true">refresh</span>
+                      <span class="text-[var(--orion-muted)] ml-2">Loading tokens…</span>
+                    </div>
+                  } @else {
+                    <!-- Selected Token Display or Search Input -->
+                    @if (selectedToken(); as token) {
+                      <button
+                        type="button"
+                        (click)="clearTokenSelection()"
+                        aria-label="Clear selected token"
+                        class="w-full orion-panel p-4 flex items-center justify-between hover:border-[var(--orion-border-strong)] transition-colors"
+                      >
+                        <div class="flex items-center gap-3">
+                          <img [src]="token.logoURI" [alt]="token.symbol" class="w-9 h-9 rounded-full bg-[var(--orion-surface-3)]">
+                          <div class="text-left">
+                            <div class="text-[14px] font-semibold text-[var(--orion-text)]">{{ token.symbol }}</div>
+                            <div class="text-[11px] font-medium text-[var(--orion-muted)]">{{ token.name }}</div>
+                          </div>
+                        </div>
+                        <span class="material-symbols-outlined text-[var(--orion-muted)]" aria-hidden="true">close</span>
+                      </button>
+                    } @else {
+                      <!-- Search Input -->
+                      <label class="orion-input w-full">
+                        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                        <input
+                          type="text"
+                          [ngModel]="tokenSearchQuery()"
+                          (ngModelChange)="onTokenSearch($event)"
+                          (focus)="showTokenSelector.set(true)"
+                          placeholder="Search by name or symbol…"
+                          aria-label="Search tokens by name or symbol"
+                        >
+                      </label>
+
+                      <!-- Token Dropdown -->
+                      @if (showTokenSelector() && filteredTokens().length > 0) {
+                        <div class="orion-modal absolute top-full left-0 right-0 mt-2 p-1.5 z-20 max-h-48 overflow-y-auto">
+                          @for (token of filteredTokens(); track token.address) {
+                            <button
+                              type="button"
+                              (click)="selectToken(token)"
+                              class="w-full orion-token-row"
+                            >
+                              <img [src]="token.logoURI" [alt]="token.symbol">
+                              <div class="flex-1 min-w-0 text-left">
+                                <div class="text-[14px] font-semibold text-[var(--orion-text)]">{{ token.symbol }}</div>
+                                <div class="text-[11px] font-medium text-[var(--orion-muted)]">{{ token.name }}</div>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      }
+
+                      @if (showTokenSelector() && filteredTokens().length === 0 && tokenSearchQuery()) {
+                        <div class="orion-modal absolute top-full left-0 right-0 mt-2 p-4 z-20 text-center text-[var(--orion-muted)] text-sm">
+                          No tokens found for "{{ tokenSearchQuery() }}"
+                        </div>
+                      }
+                    }
+                  }
+                </div>
+              </div>
+
+              <!-- Amount Input (Optional) -->
+              <div>
+                <span class="orion-label block mb-2">Amount (optional)</span>
+                <div
+                  class="orion-panel w-full px-5 py-4 hover:border-[var(--orion-border-strong)] transition-colors"
+                  [style.border-color]="requestAmountInvalid() ? 'var(--orion-danger)' : null"
+                >
+                  <div class="flex items-center gap-3">
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      [ngModel]="requestAmount"
+                      (ngModelChange)="onRequestAmountChange($event)"
+                      placeholder="0.00"
+                      aria-label="Requested amount"
+                      [attr.aria-invalid]="requestAmountInvalid()"
+                      [attr.aria-describedby]="requestAmountInvalid() ? 'request-amount-error' : null"
+                      class="orion-amount-input text-[32px] leading-none"
+                    >
+                    @if (selectedToken()) {
+                      <span class="text-[18px] font-semibold" style="color: var(--orion-accent-text);">{{ selectedToken()!.symbol }}</span>
+                    }
+                  </div>
+                </div>
+                @if (requestAmountInvalid()) {
+                  <span id="request-amount-error" class="text-xs flex items-center gap-1 mt-2" style="color: var(--orion-danger);">
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">error</span>
+                    Enter a plain positive number, like 100 or 0.5
+                  </span>
+                }
+              </div>
+
+              <!-- Generate Button -->
+              @if (!selectedToken()) {
+                <button class="orion-btn-primary w-full" disabled>
+                  Select a token
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="orion-btn-primary w-full"
+                  (click)="generatePaymentLink()"
+                >
+                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">link</span>
+                  Generate payment link
+                </button>
+              }
+
+              <!-- Generated Link (shown after generation) -->
+              @if (generatedLink()) {
+                <div class="space-y-3">
+                  <span class="orion-label block">Your payment link</span>
+                  <div class="orion-panel p-4 border-[var(--orion-accent)]">
+                    <div class="flex items-center gap-3">
+                      <p class="orion-mono text-xs break-all flex-1 text-[var(--orion-text)] m-0">
+                        {{ generatedLink() }}
+                      </p>
+                      <button
+                        type="button"
+                        class="orion-btn-ghost flex-shrink-0"
+                        style="padding: 10px 12px;"
+                        aria-label="Copy payment link"
+                        (click)="copyPaymentLink()"
+                      >
+                        <span
+                          class="material-symbols-outlined text-[18px]"
+                          [style.color]="linkCopied() ? 'var(--orion-success)' : 'var(--orion-accent-text)'"
+                          aria-hidden="true"
+                        >{{ linkCopied() ? 'check' : 'content_copy' }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Share Buttons -->
+                  <div class="flex gap-3">
+                    <button
+                      type="button"
+                      class="orion-btn-ghost flex-1"
+                      (click)="copyPaymentLink()"
+                    >
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">content_copy</span>
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      class="orion-btn-ghost flex-1"
+                      (click)="shareLink()"
+                    >
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">share</span>
+                      Share
+                    </button>
+                  </div>
+                </div>
+              }
+
+              <!-- Info -->
+              <div class="flex items-start gap-3 px-4 py-3 rounded-[14px]" style="background: var(--orion-accent-tint);">
+                <span class="material-symbols-outlined text-[18px] mt-0.5" style="color: var(--orion-accent-text);" aria-hidden="true">lightbulb</span>
+                <div>
+                  <p class="text-sm font-medium m-0" style="color: var(--orion-accent-text);">How it works</p>
+                  <p class="text-xs mt-1 leading-relaxed text-[var(--orion-muted)] m-0">
+                    Share this link with anyone. When they open it, the Send form will be pre-filled with your address and token. They cannot change the recipient.
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,125 @@
+<!-- Transaction health card -->
+@if (fromToken() || toToken()) {
+  <div class="orion-panel"
+       [style.border-color]="healthBorder()"
+       [style.background]="healthBg()">
+
+    <!-- Header (hidden when embedded — parent controls the toggle) -->
+    @if (!embedded()) {
+      <button
+        type="button"
+        (click)="toggleExpanded()"
+        [attr.aria-expanded]="isExpanded()"
+        class="w-full flex items-center justify-between px-4 py-3"
+      >
+        <div class="flex items-center gap-3">
+          @if (isLoading()) {
+            <span class="material-symbols-outlined text-[18px] orion-spin" style="color: var(--orion-muted);" aria-hidden="true">refresh</span>
+          } @else {
+            <!-- Decorative: the risk level is conveyed by the visible chip label. -->
+            <span
+              class="material-symbols-outlined text-[18px]"
+              [style.color]="healthColor()"
+              aria-hidden="true"
+            >{{ riskInfo().icon }}</span>
+          }
+
+          <span class="text-[13px] font-medium text-[var(--orion-text)]">Transaction health</span>
+
+          @if (!isLoading()) {
+            <span
+              class="orion-chip"
+              [style.background]="healthTint()"
+              [style.color]="healthColor()"
+              [style.border-color]="'transparent'"
+            >{{ riskInfo().label }}</span>
+          }
+        </div>
+
+        <span
+          class="material-symbols-outlined text-[18px] text-[var(--orion-muted)] transition-transform duration-200"
+          [class.rotate-180]="isExpanded()"
+          aria-hidden="true"
+        >expand_more</span>
+      </button>
+    }
+
+    <!-- Expanded content: always shown when embedded, otherwise gated on isExpanded -->
+    @if ((embedded() || isExpanded()) && !isLoading()) {
+      <div class="px-4 pb-4 pt-4 space-y-3">
+        @if (!embedded()) {
+          <div class="orion-divider"></div>
+        }
+
+        @if (hasCriticalRisk()) {
+          <div class="flex items-start gap-2 p-3 rounded-[12px]" style="background: var(--orion-danger-tint);">
+            <span class="material-symbols-outlined text-[18px] mt-0.5" style="color: var(--orion-danger);" aria-hidden="true">dangerous</span>
+            <div>
+              <p class="text-[13px] font-medium" style="color: var(--orion-danger);">Critical risks detected</p>
+              <p class="text-[11px] mt-0.5 text-[var(--orion-muted)]">
+                This transaction may result in loss of funds. Proceed with extreme caution.
+              </p>
+            </div>
+          </div>
+        }
+
+        @if (hasRisks()) {
+          <div class="space-y-1.5">
+            <p class="orion-label">Risks detected</p>
+            @for (risk of allRisks(); track risk.message) {
+              <div class="flex items-start gap-2">
+                <span class="material-symbols-outlined text-[14px] mt-0.5" [style.color]="getRiskItemColor(risk.type)" aria-hidden="true">{{ risk.icon }}</span>
+                <span class="text-[12px]" [style.color]="getRiskItemColor(risk.type)">{{ risk.message }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        @if (allPositives().length > 0) {
+          <div class="space-y-1.5">
+            <p class="orion-label">Positive indicators</p>
+            @for (positive of allPositives(); track positive.message) {
+              <div class="flex items-start gap-2">
+                <span class="material-symbols-outlined text-[14px] mt-0.5" style="color: var(--orion-success);" aria-hidden="true">{{ positive.icon }}</span>
+                <span class="text-[12px]" style="color: var(--orion-success);">{{ positive.message }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        @if (!hasRisks() && allPositives().length === 0) {
+          <div class="flex items-center gap-2 p-3 rounded-[10px] bg-[var(--orion-surface-2)]">
+            <span class="material-symbols-outlined text-[14px] text-[var(--orion-muted)]" aria-hidden="true">info</span>
+            <span class="text-[12px] text-[var(--orion-muted)]">No security data available for this token</span>
+          </div>
+        }
+
+        <!-- Token details -->
+        <div class="flex gap-2 pt-1">
+          @if (fromTokenSecurity(); as fromSec) {
+            <div class="flex-1 p-2.5 rounded-[10px] bg-[var(--orion-surface-2)]">
+              <p class="text-[10px] orion-label mb-1">From</p>
+              <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[13px]" [style.color]="tierInfo(fromSec.riskLevel).color" aria-hidden="true">
+                  {{ tierInfo(fromSec.riskLevel).icon }}
+                </span>
+                <span class="text-[12px] text-[var(--orion-text)]">{{ fromToken()?.symbol }}</span>
+              </div>
+            </div>
+          }
+          @if (toTokenSecurity(); as toSec) {
+            <div class="flex-1 p-2.5 rounded-[10px] bg-[var(--orion-surface-2)]">
+              <p class="text-[10px] orion-label mb-1">To</p>
+              <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[13px]" [style.color]="tierInfo(toSec.riskLevel).color" aria-hidden="true">
+                  {{ tierInfo(toSec.riskLevel).icon }}
+                </span>
+                <span class="text-[12px] text-[var(--orion-text)]">{{ toToken()?.symbol }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}

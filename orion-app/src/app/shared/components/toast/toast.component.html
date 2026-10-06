@@ -1,0 +1,103 @@
+<!--
+  role="status" + aria-live="polite" so screen readers announce toast text
+  without yanking focus away from whatever the user is doing. aria-atomic
+  lives on each toast item, NOT on this container — container-level atomic
+  made screen readers re-announce the entire stack whenever a single toast
+  changed.
+
+  Hover or keyboard focus (focusin/focusout bubble up from the link and the
+  close button) pauses the dismiss timer — error toasts carry next-step
+  instructions and explorer links the user must be able to finish reading.
+
+  left-4 right-4 + ml-auto: without a left edge the 24rem max-width was
+  clipped off-screen on narrow phones, but pinning BOTH insets over-constrains
+  the box on 424–639px viewports (width capped at max-w-sm < available space)
+  and the default margin resolution anchored it LEFT — margin-left:auto
+  re-anchors it right; sm:left-auto sm:right-6 restores the desktop offset.
+  The safe-area padding keeps the stack above the iOS home indicator.
+-->
+<!-- z-toast sits above the modal layer: a toast fired while a modal is
+     open (token-load failure, quote error, GoPlus check) was invisible
+     behind the z-999998 backdrop with the old z-50. -->
+<div
+  class="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 ml-auto z-[var(--z-toast)] flex flex-col gap-3 max-w-sm"
+  style="padding-bottom: env(safe-area-inset-bottom);"
+  role="status"
+  aria-live="polite"
+>
+  <!-- track toast.id: duplicate-collapse swaps the toast OBJECT in place
+       (same id, fresh content), so identity tracking would recreate the DOM
+       node mid-hover — mouseleave/focusout would never fire on the destroyed
+       node and the paused dismiss timer would never resume. -->
+  @for (toast of toastService.toasts(); track toast.id) {
+    <div
+      class="orion-modal p-4 animate-slide-up border-l-4"
+      style="border-radius: var(--orion-radius-panel);"
+      [style.borderLeftColor]="
+        toast.type === 'success' ? 'var(--orion-success)' :
+        toast.type === 'error'   ? 'var(--orion-danger)' :
+        toast.type === 'warning' ? 'var(--orion-warning)' :
+        'var(--orion-accent)'
+      "
+      aria-atomic="true"
+      (mouseenter)="toastService.pause(toast.id)"
+      (mouseleave)="toastService.resume(toast.id)"
+      (focusin)="toastService.pause(toast.id)"
+      (focusout)="toastService.resume(toast.id)"
+    >
+      <div class="flex items-start gap-4">
+        <!-- Icon -->
+        <div
+          class="rounded-full p-1.5 shrink-0"
+          [style.background]="
+            toast.type === 'success' ? 'var(--orion-success-tint)' :
+            toast.type === 'error'   ? 'var(--orion-danger-tint)' :
+            toast.type === 'warning' ? 'var(--orion-warning-tint)' :
+            'var(--orion-accent-tint)'
+          "
+        >
+          <span
+            class="material-symbols-outlined text-xl"
+            aria-hidden="true"
+            [style.color]="
+              toast.type === 'success' ? 'var(--orion-success)' :
+              toast.type === 'error'   ? 'var(--orion-danger)' :
+              toast.type === 'warning' ? 'var(--orion-warning)' :
+              'var(--orion-accent-text)'
+            "
+          >
+            {{ getIcon(toast.type) }}
+          </span>
+        </div>
+
+        <!-- Content -->
+        <div class="flex flex-col gap-1 flex-1 min-w-0">
+          <h4 class="text-sm font-bold text-[var(--orion-text)]">{{ toast.title }}</h4>
+          <p class="text-xs text-[var(--orion-muted)] leading-relaxed">{{ toast.message }}</p>
+
+          <a
+            *ngIf="toast.link"
+            [href]="toast.link.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs font-bold text-[var(--orion-accent-text)] hover:opacity-80 mt-1 inline-flex items-center gap-1 group"
+          >
+            {{ toast.link.text }}
+            <span class="material-symbols-outlined text-xs group-hover:translate-x-0.5 transition-transform" aria-hidden="true">
+              open_in_new
+            </span>
+          </a>
+        </div>
+
+        <!-- Close button -->
+        <button
+          class="text-[var(--orion-subtle)] hover:text-[var(--orion-text)] transition-colors"
+          (click)="toastService.remove(toast.id)"
+          aria-label="Dismiss notification"
+        >
+          <span class="material-symbols-outlined text-lg" aria-hidden="true">close</span>
+        </button>
+      </div>
+    </div>
+  }
+</div>

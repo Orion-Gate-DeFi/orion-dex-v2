@@ -1,0 +1,543 @@
+<!-- Dashboard: flat orion surfaces, no glow layers -->
+<div class="dashboard-container">
+  <div class="dashboard-content">
+    @if (privyStatePending()) {
+      <!-- ====== Hero skeleton (Privy initializing) ======
+           isConnectedInPrivy starts as null while the React bridge boots;
+           shimmer instead of a blank page. Past the timeout the guest hero
+           renders anyway (a broken Privy load then surfaces through the
+           connect flow itself). -->
+      <section class="orion-card orion-card-pad-lg hero-skeleton" role="status" aria-label="Loading">
+        <div class="hero-skeleton-orb orion-shimmer" aria-hidden="true"></div>
+        <div class="hero-skeleton-chip orion-shimmer" aria-hidden="true"></div>
+        <div class="hero-skeleton-title orion-shimmer" aria-hidden="true"></div>
+        <div class="hero-skeleton-line orion-shimmer" aria-hidden="true"></div>
+        <div class="hero-skeleton-cta orion-shimmer" aria-hidden="true"></div>
+      </section>
+    }
+    @if (showGuestHero()) {
+      <!-- ====== Hero (disconnected / login) ======
+           Redesigned welcome: a glowing brand orb (carries the assistant's
+           ice/violet edge-glow hues), one accent CTA, a supported-networks
+           strip and a feature grid. All colour from design tokens; the only
+           blue on screen is the single accent. -->
+      <section class="guest-hero orion-card" aria-labelledby="guest-hero-title" #guestHero>
+        <!-- Ambient accent aura + brand orb (both decorative). -->
+        <div class="guest-aura" aria-hidden="true"></div>
+
+        <div class="guest-hero-inner">
+          <!-- "Living Orb": breathing glow + slow ring at rest, pointer tilt
+               on hover devices, WAAPI spring/shockwave/shimmer per tap (see
+               pokeOrb). The <button> is a transparent hit-area carrying the
+               tilt transform; the visible sphere lives on .orb-body so the
+               tap spring never fights the inline tilt. -->
+          <button
+            type="button"
+            class="guest-orb"
+            #guestOrb
+            (click)="pokeOrb()"
+            aria-label="Orion"
+          >
+            <span class="orb-glow" aria-hidden="true"></span>
+            <span class="guest-orb-ring" aria-hidden="true"></span>
+            <span class="orb-body">
+              <!-- Logo cycles through top supported tokens on each tap (easter
+                   egg); falls back to ours if a CDN logo fails. -->
+              <img [src]="orbLogoSrc()" (error)="onOrbLogoError()" alt="" class="guest-orb-logo" />
+              <!-- Glint band swept across the sphere by WAAPI on each tap. -->
+              <span class="orb-shimmer" aria-hidden="true"></span>
+            </span>
+            <span class="orb-shockwave" aria-hidden="true"></span>
+            <!-- Supernova particles (decorative): converge into the centre on
+                 every 8th tap, driven by WAAPI. -->
+            <span class="orb-sparks" aria-hidden="true">
+              <span class="orb-spark"></span>
+              <span class="orb-spark"></span>
+              <span class="orb-spark"></span>
+              <span class="orb-spark"></span>
+              <span class="orb-spark"></span>
+              <span class="orb-spark"></span>
+            </span>
+          </button>
+
+          <h1 id="guest-hero-title" class="guest-title">
+            Your gateway to <span class="guest-title-accent">Web3</span>
+          </h1>
+          <p class="guest-subtitle">
+            Swap, send and track your assets across every major network — no account, no KYC. Connect your wallet and you stay in control.
+          </p>
+
+          <div class="guest-cta">
+            <button
+              type="button"
+              class="orion-btn-primary guest-connect"
+              (click)="walletService.connect()"
+            >
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">account_balance_wallet</span>
+              <span>Connect Wallet</span>
+            </button>
+            <p class="guest-cta-note">Your keys, your crypto — Orion never holds your funds.</p>
+          </div>
+
+          <!-- Supported networks: informative + on-brand. Network logos mirror
+               the same source the dashboard already uses. -->
+          <div class="guest-networks" role="group" aria-label="Supported networks">
+            <span class="guest-networks-label">Live on</span>
+            <div class="guest-networks-logos">
+              @for (network of networks; track network.id) {
+                <img
+                  class="guest-net-logo"
+                  [src]="network.logoURI"
+                  [alt]="network.name"
+                  [title]="network.name"
+                  loading="lazy"
+                />
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== Feature grid (disconnected) ====== -->
+      <div class="guest-features">
+        <div class="guest-feature">
+          <div class="guest-feature-icon">
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true">swap_horiz</span>
+          </div>
+          <h3>Swap</h3>
+          <p>Best rates sourced across top aggregators, compared on one screen.</p>
+        </div>
+
+        <div class="guest-feature">
+          <div class="guest-feature-icon">
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true">pie_chart</span>
+          </div>
+          <h3>Portfolio</h3>
+          <p>Track holdings and allocation across all your chains in real time.</p>
+        </div>
+
+        <div class="guest-feature">
+          <div class="guest-feature-icon">
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true">send</span>
+          </div>
+          <h3>Send</h3>
+          <p>Move assets to any wallet, with a clear review before you sign.</p>
+        </div>
+
+        <div class="guest-feature">
+          <div class="guest-feature-icon">
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true">account_balance</span>
+          </div>
+          <h3>RWA</h3>
+          <p>Trade tokenized stocks, treasuries and gold from a curated list.</p>
+        </div>
+      </div>
+
+      <!-- ====== Academy / Help (disconnected) ====== -->
+      <!-- gap-5 (20px) matches the feature grid's block gap; mt-5 (20px)
+           matches the section rhythm above — one 20px unit everywhere. -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        <div class="orion-card orion-card-pad">
+          <div class="flex items-start gap-5">
+            <div
+              class="w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0"
+              style="background: var(--orion-accent-tint);"
+            >
+              <span
+                class="material-symbols-outlined text-[22px]"
+                style="color: var(--orion-accent-text);"
+                aria-hidden="true"
+              >school</span>
+            </div>
+
+            <div class="flex-1 pt-0.5">
+              <h3 class="text-[18px] font-semibold mb-1.5 text-[var(--orion-text)]">Academy</h3>
+              <p class="text-[13px] leading-relaxed mb-4 text-[var(--orion-muted)]">
+                Learn Web3 basics and advanced strategies
+              </p>
+              <span class="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--orion-subtle)]">
+                <span class="material-symbols-outlined text-[15px]" aria-hidden="true">schedule</span>
+                Coming soon
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="orion-card orion-card-pad">
+          <div class="flex items-start gap-5">
+            <div
+              class="w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0"
+              style="background: var(--orion-accent-tint);"
+            >
+              <span
+                class="material-symbols-outlined text-[22px]"
+                style="color: var(--orion-accent-text);"
+                aria-hidden="true"
+              >help</span>
+            </div>
+
+            <div class="flex-1 pt-0.5">
+              <h3 class="text-[18px] font-semibold mb-1.5 text-[var(--orion-text)]">Help</h3>
+              <p class="text-[13px] leading-relaxed mb-3 text-[var(--orion-muted)]">
+                Get support and find answers to common questions
+              </p>
+              <a
+                href="https://discord.com/invite/6xdyDbxZ5G"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 text-[13px] font-medium transition-opacity hover:opacity-85"
+                style="color: var(--orion-accent-text);"
+              >
+                Chat support
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+    <!-- Connected branch also honours the connectDirect fallback, where the
+         wallet is attached but isConnectedInPrivy stays null forever. -->
+    @if (walletService.isConnectedInPrivy() || walletService.isConnected()) {
+      <!-- Sticky quick toolbar: slides in when the Allocation ring (the
+           primary total display) leaves the viewport. -->
+      @if (showQuickBar()) {
+        <div class="quick-bar">
+          <div class="quick-bar-inner">
+            <span class="orion-label">Portfolio</span>
+            <span class="orion-tabular text-[16px] font-bold text-[var(--orion-text)]">{{ formatUSD(totalValueUSD()) }}</span>
+            <div class="ml-auto flex items-center gap-2">
+              <button [routerLink]="'/swap'" class="orion-btn-ghost" style="padding: 7px 14px; font-size: 12.5px;">
+                <span class="material-symbols-outlined text-[15px]" aria-hidden="true">swap_horiz</span>
+                <span>Swap</span>
+              </button>
+              <button [routerLink]="'/send'" class="orion-btn-ghost" style="padding: 7px 14px; font-size: 12.5px;">
+                <span class="material-symbols-outlined text-[15px]" aria-hidden="true">north_east</span>
+                <span class="hidden sm:inline">Send</span>
+              </button>
+              <button [routerLink]="'/receive'" class="orion-btn-ghost" style="padding: 7px 14px; font-size: 12.5px;">
+                <span class="material-symbols-outlined text-[15px]" aria-hidden="true">south_west</span>
+                <span class="hidden sm:inline">Receive</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ====== Balance hero (connected) ======
+           Top-wallet pattern (Zerion/Rabby): the number IS the headline.
+           Greeting copy and the disabled Buy ghost-button are gone. -->
+      <header class="dashboard-header">
+        <h1 class="sr-only">Portfolio</h1>
+        <div class="flex flex-wrap items-center gap-2 md:gap-3">
+          <button [routerLink]="'/swap'" class="orion-btn-ghost" style="padding: 10px 18px; font-size: 13px;">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">swap_horiz</span>
+            <span>Swap</span>
+          </button>
+          <button [routerLink]="'/send'" class="orion-btn-ghost" style="padding: 10px 18px; font-size: 13px;">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">north_east</span>
+            <span>Send</span>
+          </button>
+          <button [routerLink]="'/receive'" class="orion-btn-ghost" style="padding: 10px 18px; font-size: 13px;">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">south_west</span>
+            <span>Receive</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- ====== Main grid: assets/activity (main) + allocation & help (aside) ====== -->
+      <div class="dashboard-grid">
+
+        <section class="flex flex-col gap-4 min-w-0 lg:order-none order-last">
+          <!-- View switch -->
+          <!-- role=group + aria-pressed (not the tablist/tab pattern): we don't
+               implement roving tabindex / arrow-key nav / a labelled tabpanel,
+               so role=tab would over-promise to screen readers. Matches the
+               token-selector's toggle-group treatment. -->
+          <div class="flex items-center gap-2 h-[34px]" role="group" aria-label="Portfolio view">
+            <button
+              type="button"
+              class="orion-net-tab"
+              [class.active]="activeTab() === 'assets'"
+              [attr.aria-pressed]="activeTab() === 'assets'"
+              (click)="activeTab.set('assets')"
+            >
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">account_balance_wallet</span>
+              Assets
+            </button>
+            <button
+              type="button"
+              class="orion-net-tab"
+              [class.active]="activeTab() === 'activity'"
+              [attr.aria-pressed]="activeTab() === 'activity'"
+              (click)="activeTab.set('activity')"
+            >
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">history</span>
+              Activity
+            </button>
+          </div>
+
+          @if (activeTab() === 'assets') {
+            <div class="orion-card relative">
+              <!-- Zero-based summary chrome only with real data: during
+                   wallet provisioning, the first load, or a first-load
+                   failure, "$0.00 / 0 tokens" cards above the status block
+                   below would be a lie. -->
+              @if (portfolioChromeVisible()) {
+              <div class="network-cards">
+                <button
+                  class="network-card"
+                  [class.active]="selectedNetwork() === null"
+                  [attr.aria-pressed]="selectedNetwork() === null"
+                  (click)="selectNetwork(null)">
+                  <div class="network-card-left">
+                    <div class="network-icon all-networks-icon">
+                      <span class="material-symbols-outlined" aria-hidden="true">language</span>
+                    </div>
+                    <div class="network-info">
+                      <span class="network-name">All Networks</span>
+                      <span class="network-tokens">{{ shownAssets().length }} tokens</span>
+                    </div>
+                  </div>
+                  <div class="network-card-right">
+                    <span class="network-balance">{{ formatUSD(totalValueUSD()) }}</span>
+                  </div>
+                </button>
+
+                @for (network of networks; track network.id) {
+                  @if (getNetworkBalance(network.id) !== 0) {
+                    <button
+                      class="network-card"
+                      [class.active]="selectedNetwork() === network.id"
+                      [attr.aria-pressed]="selectedNetwork() === network.id"
+                      [class.has-balance]="getNetworkBalance(network.id) > 0"
+                      [class.empty]="getNetworkBalance(network.id) === 0"
+                      (click)="selectNetwork(network.id)">
+                      <div class="network-card-left">
+                        <img [src]="network.logoURI" [alt]="network.name" class="network-icon">
+                        <div class="network-info">
+                          <div class="network-name-row">
+                            <span class="network-name">{{ network.name }}</span>
+                          </div>
+                          <span class="network-tokens">{{ getNetworkTokenCount(network.id) }} tokens</span>
+                        </div>
+                      </div>
+                      <div class="network-card-right">
+                        <span class="network-balance" [class.zero]="getNetworkBalance(network.id) === 0">
+                          {{ formatUSD(getNetworkBalance(network.id)) }}
+                        </span>
+                        @if (totalValueUSD() > 0 && getNetworkBalance(network.id) > 0) {
+                          <span class="network-percent">{{ ((getNetworkBalance(network.id) / totalValueUSD()) * 100).toFixed(1) }}%</span>
+                        }
+                      </div>
+                    </button>
+                  }
+                }
+              </div>
+              }
+
+              @if (isLoading()) {
+                <!-- Loading State -->
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading your assets…</p>
+                </div>
+              } @else if (!walletService.isConnected()) {
+                <!-- Wallet provisioning state: Privy is authenticated but the
+                     (embedded) wallet isn't attached yet. A Connect button
+                     here is a dead end — login() no-ops once authenticated —
+                     so show progress instead. -->
+                <div class="empty-state wallet-setup" role="status">
+                  <div class="spinner"></div>
+                  <p>Setting up your wallet…</p>
+                </div>
+              } @else if (loadError()) {
+                <!-- Load Error State -->
+                <div class="empty-state">
+                  <span class="material-symbols-outlined empty-icon error-icon" aria-hidden="true">error</span>
+                  <p>Couldn't load your portfolio</p>
+                  <button
+                    class="orion-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    (click)="refresh()"
+                    [disabled]="isRefreshing()"
+                  >Retry</button>
+                </div>
+              } @else if (filteredAssets().length === 0 && hiddenAssets().length === 0) {
+                <!-- No Assets State -->
+                <div class="empty-state">
+                  <span class="material-symbols-outlined empty-icon" aria-hidden="true">savings</span>
+                  @if (selectedNetwork() !== null) {
+                    <p>No assets found on {{ getNetworkName(selectedNetwork()!) }}</p>
+                    <button class="primary-link" (click)="selectNetwork(null)">View all networks →</button>
+                  } @else {
+                    <p>No assets found in your wallet</p>
+                    <a routerLink="/swap" class="primary-link">Make your first swap →</a>
+                  }
+                </div>
+              } @else {
+                <!-- Assets List -->
+                @if (filteredAssets().length > 0) {
+                  <div class="table-header">
+                    <span class="col-asset">Asset</span>
+                    <span class="col-balance">Balance</span>
+                    <span class="col-value">Value</span>
+                  </div>
+
+                  <!-- Track by address: symbol+chain collides on counterfeit
+                       tokens that mimic a real symbol (NG0955). -->
+                  @for (asset of filteredAssets(); track asset.address + '-' + asset.chainId) {
+                    <div class="asset-row">
+                      <div class="col-asset">
+                        <div class="asset-logo-wrapper">
+                          <img [src]="asset.logoURI" [alt]="asset.symbol" class="asset-logo"
+                               (error)="onTokenImgError($event)">
+                          <!-- Network badge -->
+                          <img [src]="getNetworkLogo(asset.chainId)" [alt]="getNetworkName(asset.chainId)" class="network-badge"
+                               [title]="getNetworkName(asset.chainId)">
+                        </div>
+                        <div class="asset-info">
+                          <span class="asset-name">{{ asset.name }}</span>
+                          <span class="asset-symbol">{{ asset.symbol }} · {{ getNetworkName(asset.chainId) }}</span>
+                        </div>
+                      </div>
+                      <div class="col-balance">
+                        <span class="balance-amount orion-tabular">{{ formatBalance(asset.balance) }} {{ asset.symbol }}</span>
+                      </div>
+                      <div class="col-value">
+                        <span class="value-usd orion-tabular">{{ formatUSD(asset.balanceUSD) }}</span>
+                      </div>
+                    </div>
+                  }
+                }
+
+                <!-- Tokens not on the trusted list (unsolicited airdrops /
+                     counterfeits): collapsed, excluded from totals and ring. -->
+                @if (hiddenAssets().length > 0) {
+                  <div class="hidden-tokens">
+                    <button
+                      type="button"
+                      class="hidden-tokens-toggle"
+                      (click)="showHiddenAssets.set(!showHiddenAssets())"
+                      [attr.aria-expanded]="showHiddenAssets()"
+                    >
+                      <span class="material-symbols-outlined text-[16px]" aria-hidden="true">visibility_off</span>
+                      <span>Hidden tokens ({{ hiddenAssets().length }})</span>
+                      <span class="material-symbols-outlined text-[16px] ml-auto" aria-hidden="true">{{ showHiddenAssets() ? 'expand_less' : 'expand_more' }}</span>
+                    </button>
+                    @if (showHiddenAssets()) {
+                      <p class="hidden-tokens-note">
+                        Not on the verified token list — excluded from your total and allocation. Unexpected airdrops are often scams; don't interact with tokens you don't recognize.
+                      </p>
+                      @for (asset of hiddenAssets(); track asset.address + '-' + asset.chainId) {
+                        <div class="asset-row hidden-row">
+                          <div class="col-asset">
+                            <div class="asset-logo-wrapper">
+                              <img [src]="asset.logoURI" [alt]="asset.symbol" class="asset-logo"
+                                   (error)="onTokenImgError($event)">
+                              <img [src]="getNetworkLogo(asset.chainId)" [alt]="getNetworkName(asset.chainId)" class="network-badge"
+                                   [title]="getNetworkName(asset.chainId)">
+                            </div>
+                            <div class="asset-info">
+                              <span class="asset-name">{{ asset.name }}</span>
+                              <span class="asset-symbol">{{ asset.symbol }} · {{ getNetworkName(asset.chainId) }}</span>
+                            </div>
+                          </div>
+                          <div class="col-balance">
+                            <span class="balance-amount orion-tabular">{{ formatBalance(asset.balance) }} {{ asset.symbol }}</span>
+                          </div>
+                          <div class="col-value">
+                            <span class="value-usd orion-tabular">{{ formatUSD(asset.balanceUSD) }}</span>
+                          </div>
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              }
+            </div>
+          } @else {
+            <app-transaction-history [limit]="20" />
+          }
+        </section>
+
+        <aside class="flex flex-col gap-4 min-w-0 lg:order-none order-first">
+          <!-- Header row mirrors the tabs row height so both columns' cards
+               start on the same line. -->
+          <div class="flex items-center justify-between h-[34px]">
+            <span class="orion-label">Allocation</span>
+            <!-- min-w-0 + shrink-0 siblings let the hint (the only flexible
+                 item) truncate with an ellipsis on ~320px viewports instead
+                 of overflowing the fixed-height row. -->
+            <div class="flex items-center gap-1.5 min-w-0">
+              @if (refreshFailed()) {
+                <span class="refresh-failed-hint" role="status">Couldn't refresh — will retry</span>
+              }
+              @if (timeSinceUpdate()) {
+                <span class="orion-tabular text-[11px] text-[var(--orion-subtle)] shrink-0">{{ timeSinceUpdate() }}</span>
+              }
+              <button
+                class="orion-btn-icon shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                style="width: 28px; height: 28px;"
+                (click)="refresh()"
+                [disabled]="isLoading() || isRefreshing()"
+                title="Refresh balances"
+                aria-label="Refresh balances">
+                <span class="material-symbols-outlined text-[15px]" [class.orion-spin]="isLoading() || isRefreshing()" aria-hidden="true">refresh</span>
+              </button>
+            </div>
+          </div>
+          <!-- Allocation: interactive breakdown ring; follows the network
+               filter from the assets card, balance in the centre. The anchor
+               drives the quick-bar IntersectionObserver. -->
+          <div class="orion-card orion-card-pad" #allocCard>
+            @if (!portfolioChromeVisible()) {
+              <!-- No real data yet (provisioning / first load / first-load
+                   failure): a $0.00 centre would be a lie — show a neutral
+                   placeholder until data actually arrives. -->
+              <div class="alloc-unavailable" role="status">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">donut_large</span>
+                <span>{{ isLoading() || !walletService.isConnected() ? 'Loading allocation…' : 'Allocation unavailable' }}</span>
+              </div>
+            } @else {
+              <app-orion-asset-ring
+                [segments]="ringSegments()"
+                [total]="filteredValueUSD()"
+                [caption]="ringCaption()"
+              />
+            }
+          </div>
+
+          <div class="orion-card orion-card-pad mt-2">
+            <h3 class="text-[15px] font-semibold text-[var(--orion-text)] mb-1.5">New to Web3?</h3>
+            <p class="text-[13px] leading-relaxed text-[var(--orion-muted)] mb-2">
+              Learn the basics of securing your wallet and making your first transaction.
+            </p>
+            <span class="flex items-center gap-1.5 text-[12px] font-medium text-[var(--orion-subtle)]">
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">schedule</span>
+              Coming soon
+            </span>
+            <div class="orion-divider my-4"></div>
+            <a
+              href="https://discord.com/invite/6xdyDbxZ5G"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="orion-btn-ghost w-full text-[13px] font-medium no-underline"
+            >
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">forum</span>
+              Chat with support
+            </a>
+            <a
+              [href]="suggestFeatureUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="orion-btn-ghost w-full text-[13px] font-medium no-underline mt-2"
+            >
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">feedback</span>
+              Suggest a feature
+            </a>
+          </div>
+        </aside>
+      </div>
+    }
+  </div>
+</div>

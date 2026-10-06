@@ -1,0 +1,90 @@
+# =============================================================================
+# Orion DEX V2 - Git Ignore
+# =============================================================================
+
+# Design templates & mockups
+stitch_orion*/
+**/stitch_*/
+*.psd
+*.sketch
+*.fig
+
+# Dependencies
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+dist/
+build/
+.angular/
+.claude/
+.gemini/
+.agent/
+.cursor/
+.antigravity/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# System
+.DS_Store
+Thumbs.db
+*.log
+
+# Local dev
+*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+*.zip
+*.pdf
+.mcp.json
+skills-lock.json
+
+# Logo source files (originals copied to public/)
+orion-app/logo/
+
+# Local analysis & docs
+IBC_ANALYSIS.md
+audit.txt
+# Security audit + fix plan — local-only, NEVER push (catalogues live findings)
+/AUDIT.md
+/FIX_PLAN.md
+/TEST_GUIDE.md
+# Local research notes — keep on disk, never push
+/docs/RWA_TRADABILITY_2026-06-20.md
+
+# IBC Relayer (local dev)
+ibc-relayer/
+
+# SSH keys - NEVER push!
+new_ssh
+*.pem
+id_rsa*
+
+# Separate backend repo — has its own .git, don't embed as a gitlink
+backend/
+
+# AI assistant workspaces (personal, not shared)
+**/.agents/
+GEMINI.md
+**/GEMINI.md
+*.gemini.md
+
+# Personal scratch notes and learning material (not project docs)
+CLAUDE-reference-example.md
+claude-code-guide-for-beginners-ru.md
+SWAP_CONCEPT_PROMPT.md
+CLAUDE.md
+AGGREGATOR_PLAN.md
+DESIGN_CRITIQUE.md
+UI_UX_AUDIT_*.md

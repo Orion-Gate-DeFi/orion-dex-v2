@@ -1,0 +1,78 @@
+<div class="flex-1 flex items-start justify-center p-3 lg:p-4 relative min-h-0 orion-screen-enter">
+  <div class="w-full max-w-[520px] pt-6">
+    <div class="flex items-center gap-3 mb-6">
+      <h1 class="text-[22px] font-semibold text-[var(--orion-text)] tracking-[-0.01em] m-0">Buy crypto</h1>
+    </div>
+
+    <div class="orion-card w-full">
+      <div class="p-4 sm:p-6 lg:p-8">
+        @if (!walletService.isConnected()) {
+          <!-- Not connected: same login flow every other screen uses -->
+          <div class="text-center py-10">
+            <app-status-icon class="mx-auto mb-6" icon="account_balance_wallet" tint="accent"></app-status-icon>
+            <h2 class="text-[20px] font-semibold text-[var(--orion-text)] mb-2">Log in to continue</h2>
+            <p class="text-[14px] text-[var(--orion-muted)] mb-6">
+              Your wallet is created for you when you log in — no seed phrase to write down.
+            </p>
+            <button
+              type="button"
+              class="orion-btn-primary w-full"
+              (click)="connectWallet()"
+            >
+              Log in
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">account_balance_wallet</span>
+            </button>
+          </div>
+        } @else {
+          <!-- Connected: hand the address to Privy's funding modal -->
+          <div class="text-center py-6">
+            <app-status-icon class="mx-auto mb-6" icon="credit_card" tint="accent"></app-status-icon>
+            <h2 class="text-[20px] font-semibold text-[var(--orion-text)] mb-2">Pay by card or bank</h2>
+            <p class="text-[14px] text-[var(--orion-muted)] mb-6">
+              You'll get USDC on Base — a dollar-pegged token you can swap for anything in the app.
+            </p>
+          </div>
+
+          <div class="mb-2">
+            <span class="orion-label block mb-2">Funds arrive at</span>
+          </div>
+          <div class="orion-panel w-full px-4 py-3 mb-6">
+            <p class="orion-mono text-sm break-all text-[var(--orion-text)] m-0">
+              {{ walletService.address() }}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="orion-btn-primary w-full"
+            [disabled]="isFunding()"
+            (click)="buyCrypto()"
+          >
+            @if (isFunding()) {
+              Opening…
+            } @else {
+              Buy crypto
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">credit_card</span>
+            }
+          </button>
+
+          <p class="text-[12px] text-[var(--orion-muted)] mt-4 mb-0 text-center">
+            Payment and identity checks are handled by our payment provider. Funds can take a few minutes to arrive.
+          </p>
+        }
+      </div>
+    </div>
+
+    @if (openedFromApp) {
+      <!-- Deep link back into the iOS app. Rendered only for ?from=app: in a
+           normal browser the custom scheme leads nowhere. -->
+      <a
+        class="orion-btn-ghost w-full mt-4"
+        [href]="returnToAppUrl"
+      >
+        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
+        Return to Orion
+      </a>
+    }
+  </div>
+</div>

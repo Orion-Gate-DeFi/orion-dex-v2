@@ -1,0 +1,207 @@
+<!-- Top bar -->
+<header
+  class="relative z-[var(--z-dropdown)] flex items-center h-16 px-4 sm:px-7 border-b"
+  style="border-color: var(--orion-border); background: var(--orion-bg);"
+>
+  <!-- Logo + alpha chip -->
+  <a routerLink="/" class="flex items-center gap-3 mr-4 sm:mr-9 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <img src="logo_header.png" alt="Orion Gate" class="h-8 w-auto shrink-0" />
+      <span class="text-[17px] font-semibold tracking-tight text-[var(--orion-text)]">Orion</span>
+    </div>
+    <span
+      class="text-[10.5px] font-semibold uppercase tracking-[0.06em] px-[7px] py-[3px] rounded-md"
+      style="color: var(--orion-accent-text); background: var(--orion-accent-tint);"
+    >Beta</span>
+  </a>
+
+  <!-- Nav. Swap/Send/Receive are wallet-gated — they're dead ends before
+       connecting, so a logged-out user only sees Home (the landing). -->
+  <nav class="hidden md:flex items-center gap-1">
+    <a
+      routerLink="/"
+      routerLinkActive="orion-nav-active"
+      [routerLinkActiveOptions]="homeActiveOptions"
+      class="orion-nav-item"
+    >Home</a>
+    @if (walletService.isConnected()) {
+      <a
+        routerLink="/swap"
+        routerLinkActive="orion-nav-active"
+        class="orion-nav-item"
+      >Swap</a>
+      <a
+        routerLink="/send"
+        routerLinkActive="orion-nav-active"
+        class="orion-nav-item"
+      >Send</a>
+      <a
+        routerLink="/receive"
+        routerLinkActive="orion-nav-active"
+        class="orion-nav-item"
+      >Receive</a>
+    }
+  </nav>
+
+  <!-- Right side: network + wallet -->
+  <div class="ml-auto flex items-center gap-2.5">
+
+    <!-- The current-network chip was removed: network selection happens
+         per-token in the selector, so a global "you're on X" indicator was
+         redundant. The unsupported-network warning stays — it's a safety
+         signal (wrong wallet chain), not a "which network" display. -->
+    @if (isUnsupportedNetwork()) {
+      <span class="orion-chip" style="background: var(--orion-warning-tint); color: var(--orion-warning); border-color: transparent;" role="status">
+        <span class="material-symbols-outlined text-[13px]" aria-hidden="true">warning</span>
+        <span class="font-medium">Unsupported network</span>
+      </span>
+    }
+
+    <div class="relative">
+      @if (walletService.isConnected()) {
+        <button
+          #menuTrigger
+          type="button"
+          class="orion-chip"
+          style="background: var(--orion-surface); padding-right: 12px;"
+          [attr.aria-expanded]="isMenuOpen()"
+          (click)="toggleMenu($event)"
+        >
+          <span class="inline-block w-5 h-5 rounded-full orion-avatar"></span>
+          <span class="orion-tabular text-[13px]">{{ walletService.shortAddress() }}</span>
+          <span
+            class="material-symbols-outlined text-[14px] text-[var(--orion-muted)] transition-transform duration-200"
+            [class.rotate-180]="isMenuOpen()"
+            aria-hidden="true"
+          >expand_more</span>
+        </button>
+
+        @if (isMenuOpen()) {
+          <div class="orion-modal absolute top-full right-0 mt-2 w-64 orion-scale-in">
+            <div class="p-4 border-b" style="border-color: var(--orion-border);">
+              <div class="flex items-center gap-3">
+                <span class="inline-block w-10 h-10 rounded-full orion-avatar"></span>
+                <div class="min-w-0">
+                  <p class="text-[13px] font-semibold text-[var(--orion-text)] orion-tabular">
+                    {{ walletService.shortAddress() }}
+                  </p>
+                  <p class="text-[11px] text-[var(--orion-muted)] orion-tabular">
+                    {{ walletService.state().balance | number:'1.4-4' }} {{ nativeSymbol() }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Disclosure, not a composite menu: role=menu promises arrow-key
+                 navigation and roving focus that two plain buttons don't need
+                 (and we don't implement). aria-expanded on the trigger is the
+                 whole contract. -->
+            <div class="p-2">
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-colors"
+                style="color: var(--orion-text);"
+                (click)="onCopyAddress($event)"
+              >
+                <span class="material-symbols-outlined text-[18px] text-[var(--orion-muted)]" aria-hidden="true">content_copy</span>
+                <span class="text-[13px]">Copy address</span>
+              </button>
+              <!-- Embedded-wallet sessions only: Privy custodies the key, so
+                   this is the user's sole recovery path (audit #17). External
+                   wallets export from their own UI. -->
+              @if (isEmbeddedWallet()) {
+                @if (!isExportConfirmOpen()) {
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-colors"
+                    style="color: var(--orion-text);"
+                    (click)="onExportWallet($event)"
+                  >
+                    <span class="material-symbols-outlined text-[18px] text-[var(--orion-muted)]" aria-hidden="true">key</span>
+                    <span class="text-[13px]">Export wallet</span>
+                  </button>
+                } @else {
+                  <div class="px-3 py-2.5" role="alertdialog" aria-label="Confirm wallet export">
+                    <p class="text-[12px] leading-snug mb-2.5" style="color: var(--orion-warning);">
+                      You are about to reveal your private key. Never share it.
+                    </p>
+                    <div class="flex gap-2">
+                      <button
+                        type="button"
+                        class="flex-1 px-3 py-2 rounded-[10px] text-[12px] font-semibold transition-colors"
+                        style="background: var(--orion-danger); color: #fff;"
+                        (click)="onExportConfirm($event)"
+                      >Reveal key</button>
+                      <button
+                        type="button"
+                        class="flex-1 px-3 py-2 rounded-[10px] text-[12px] font-medium transition-colors"
+                        style="background: var(--orion-surface); color: var(--orion-text);"
+                        (click)="onExportCancel($event)"
+                      >Cancel</button>
+                    </div>
+                  </div>
+                }
+              }
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-colors"
+                style="color: var(--orion-danger);"
+                (click)="onDisconnect($event)"
+              >
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">logout</span>
+                <span class="text-[13px]">Disconnect</span>
+              </button>
+            </div>
+          </div>
+        }
+      } @else {
+        <button
+          #connectBtn
+          type="button"
+          class="orion-btn-primary"
+          style="padding: 8px 16px; font-size: 13px;"
+          [disabled]="walletService.state().isConnecting"
+          (click)="onConnect()"
+        >
+          @if (walletService.state().isConnecting) {
+            <span class="material-symbols-outlined text-[16px] orion-spin" aria-hidden="true">refresh</span>
+            <span class="hidden sm:inline">Connecting…</span>
+          } @else {
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">account_balance_wallet</span>
+            <span>Connect</span>
+          }
+        </button>
+      }
+    </div>
+  </div>
+</header>
+
+<!-- Mobile navigation — only once connected; the logged-out landing has its
+     own CTA, so the in-app bottom-nav would just be clutter there. -->
+@if (walletService.isConnected()) {
+  <nav
+    class="md:hidden flex items-center justify-around py-3 border-b"
+    style="border-color: var(--orion-border); background: var(--orion-bg);"
+  >
+    <a
+      routerLink="/"
+      routerLinkActive="orion-mnav-active"
+      [routerLinkActiveOptions]="homeActiveOptions"
+      class="orion-mnav-item"
+    >
+      <span class="material-symbols-outlined text-[22px]" aria-hidden="true">home</span>
+      <span class="text-[11px] font-medium">Home</span>
+    </a>
+    <a routerLink="/swap" routerLinkActive="orion-mnav-active" class="orion-mnav-item">
+      <span class="material-symbols-outlined text-[22px]" aria-hidden="true">swap_horiz</span>
+      <span class="text-[11px] font-medium">Swap</span>
+    </a>
+    <a routerLink="/send" routerLinkActive="orion-mnav-active" class="orion-mnav-item">
+      <span class="material-symbols-outlined text-[22px]" aria-hidden="true">north_east</span>
+      <span class="text-[11px] font-medium">Send</span>
+    </a>
+    <a routerLink="/receive" routerLinkActive="orion-mnav-active" class="orion-mnav-item">
+      <span class="material-symbols-outlined text-[22px]" aria-hidden="true">south_west</span>
+      <span class="text-[11px] font-medium">Receive</span>
+    </a>
+  </nav>
+}
