@@ -24,7 +24,7 @@
     "@angular/platform-browser": "^19.2.18",
     "@angular/platform-browser-dynamic": "^19.2.18",
     "@angular/router": "^19.2.18",
-    "@lifi/sdk": "^3.16.3",
+    "@lifi/sdk": "^4.10.0",
     "@privy-io/react-auth": "^3.37.0",
     "@sentry/angular": "^10.57.0",
     "@solana-program/system": "^0.10.0",
